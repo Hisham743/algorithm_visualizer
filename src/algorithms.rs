@@ -11,24 +11,24 @@ mod tests {
         ($algorithm:ident) => {
             #[test]
             fn $algorithm() {
-                let engine = SortingEngine::<i32>::new();
+                let mut engine = SortingEngine::<i32>::new();
 
-                engine.$algorithm().collect();
+                engine.$algorithm().for_each(drop);
                 assert!(engine.0.is_sorted(), "empty case");
 
                 engine.0.push(fastrand::i32(..));
-                engine.$algorithm().collect();
+                engine.$algorithm().for_each(drop);
                 assert!(engine.0.is_sorted(), "single case");
 
-                engine.set_elements(iter::repeat_with(|| fastrand::i32(..)).take(100).collect());
-                engine.$algorithm().collect();
+                engine.set_elements(iter::repeat_with(|| fastrand::i32(..)).take(100));
+                engine.$algorithm().for_each(drop);
                 assert!(engine.0.is_sorted(), "100 case");
 
-                engine.$algorithm().collect();
+                engine.$algorithm().for_each(drop);
                 assert!(engine.0.is_sorted(), "sorted case");
 
                 engine.0.reverse();
-                engine.$algorithm().collect();
+                engine.$algorithm().for_each(drop);
                 assert!(engine.0.is_sorted(), "reverse case");
             }
         };
