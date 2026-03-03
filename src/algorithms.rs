@@ -49,6 +49,33 @@ impl<T: Ord + Clone> SortingEngine<T> {
             }
         }
     }
+
+    pub fn insertion_sort(&mut self) -> impl Iterator<Item = usize> {
+        gen {
+            let length = self.0.len();
+            if length < 2 {
+                return;
+            }
+
+            for i in 1..length {
+                let mut insert_index = i;
+                let current_value = self.0[i].clone();
+
+                for j in (0..i).rev() {
+                    yield j;
+
+                    if self.0[j] > current_value {
+                        self.0[j + 1] = self.0[j].clone();
+                        insert_index = j;
+                    } else {
+                        break;
+                    }
+                }
+
+                self.0[insert_index] = current_value;
+            }
+        }
+    }
 }
 
 #[cfg(test)]
