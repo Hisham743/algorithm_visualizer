@@ -19,6 +19,29 @@ impl<T: Ord> SortingEngine<T> {
             }
         }
     }
+
+    pub fn selection_sort(&mut self) -> impl Iterator<Item = usize> {
+        gen {
+            let length = self.0.len();
+            if length < 2 {
+                return;
+            }
+
+            for i in 0..(length - 1) {
+                let mut min_index = i;
+
+                for j in (i + 1)..length {
+                    yield j;
+
+                    if self.0[j] < self.0[min_index] {
+                        min_index = j;
+                    }
+                }
+
+                self.0.swap(i, min_index);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -54,4 +77,5 @@ mod tests {
     }
 
     test_algorithm!(bubble_sort);
+    test_algorithm!(selection_sort);
 }
