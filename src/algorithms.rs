@@ -1,6 +1,6 @@
 use crate::SortingEngine;
 
-impl<T: Ord> SortingEngine<T> {
+impl<T: Ord + Clone> SortingEngine<T> {
     pub fn bubble_sort(&mut self) -> impl Iterator<Item = usize> {
         gen {
             let length = self.0.len();
@@ -85,4 +85,5 @@ mod tests {
 
     test_algorithm!(bubble_sort);
     test_algorithm!(selection_sort);
+    test_algorithm!(insertion_sort);
 }

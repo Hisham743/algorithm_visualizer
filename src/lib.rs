@@ -5,7 +5,7 @@ mod algorithms;
 #[derive(Debug)]
 pub struct SortingEngine<T: Ord>(Vec<T>);
 
-impl<T: Ord> SortingEngine<T> {
+impl<T: Ord + Clone> SortingEngine<T> {
     pub fn new() -> Self {
         SortingEngine(Vec::new())
     }
@@ -23,7 +23,7 @@ impl<T: Ord> SortingEngine<T> {
     }
 }
 
-impl<T: Ord> Default for SortingEngine<T> {
+impl<T: Ord + Clone> Default for SortingEngine<T> {
     fn default() -> Self {
         Self::new()
     }
