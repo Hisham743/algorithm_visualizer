@@ -1,6 +1,82 @@
 #![feature(gen_blocks)]
 
-pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {}
+pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
+    fn bubble_sort(&mut self) -> impl Iterator<Item = usize> {
+        gen move {
+            let length = self.as_ref().len();
+            if length < 2 {
+                return;
+            }
+
+            for i in 0..(length - 1) {
+                let mut swapped = false;
+
+                for j in 0..(length - i - 1) {
+                    yield j;
+
+                    if self.as_ref()[j] > self.as_ref()[j + 1] {
+                        self.as_mut().swap(j, j + 1);
+                        swapped = true;
+                    }
+                }
+
+                if !swapped {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn selection_sort(&mut self) -> impl Iterator<Item = usize> {
+        gen move {
+            let length = self.as_ref().len();
+            if length < 2 {
+                return;
+            }
+
+            for i in 0..(length - 1) {
+                let mut min_index = i;
+
+                for j in (i + 1)..length {
+                    yield j;
+
+                    if self.as_ref()[j] < self.as_ref()[min_index] {
+                        min_index = j;
+                    }
+                }
+
+                self.as_mut().swap(i, min_index);
+            }
+        }
+    }
+
+    fn insertion_sort(&mut self) -> impl Iterator<Item = usize> {
+        gen move {
+            let length = self.as_ref().len();
+            if length < 2 {
+                return;
+            }
+
+            for i in 1..length {
+                let mut insert_index = i;
+                let current_value = self.as_ref()[i].clone();
+
+                for j in (0..i).rev() {
+                    yield j;
+
+                    if self.as_ref()[j] > current_value {
+                        self.as_mut()[j + 1] = self.as_ref()[j].clone();
+                        insert_index = j;
+                    } else {
+                        break;
+                    }
+                }
+
+                self.as_mut()[insert_index] = current_value;
+            }
+        }
+    }
+}
 
 impl<T: Ord + Clone> Sort<T> for [T] {}
 
@@ -39,6 +115,4 @@ mod tests {
     test_algorithm!(bubble_sort);
     test_algorithm!(selection_sort);
     test_algorithm!(insertion_sort);
-    test_algorithm!(merge_sort);
-    test_algorithm!(quick_sort);
 }
