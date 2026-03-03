@@ -1,3 +1,5 @@
+#![feature(gen_blocks)]
+
 mod algorithms;
 
 #[derive(Debug)]
@@ -12,8 +14,8 @@ impl<T: Ord> SortingEngine<T> {
         &self.0
     }
 
-    pub fn set_elements<I: Into<Vec<T>>>(&mut self, elements: I) {
-        self.0 = elements.into();
+    pub fn set_elements(&mut self, elements: impl IntoIterator<Item = T>) {
+        self.0 = elements.into_iter().collect();
     }
 
     pub fn shuffle(&mut self) {
