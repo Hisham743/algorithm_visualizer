@@ -1,3 +1,5 @@
+mod algorithms;
+
 #[derive(Debug)]
 pub struct SortingEngine<T: Ord>(Vec<T>);
 
