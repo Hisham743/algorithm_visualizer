@@ -6,6 +6,14 @@ impl<T: Ord> SortingEngine<T> {
         SortingEngine(Vec::new())
     }
 
+    pub fn get_elements(&self) -> &[T] {
+        &self.0
+    }
+
+    pub fn set_elements<I: Into<Vec<T>>>(&mut self, elements: I) {
+        self.0 = elements.into();
+    }
+
     pub fn shuffle(&mut self) {
         fastrand::shuffle(&mut self.0);
     }
