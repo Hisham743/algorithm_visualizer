@@ -9,12 +9,19 @@ impl<T: Ord> SortingEngine<T> {
             }
 
             for i in 0..(length - 1) {
+                let mut swapped = false;
+
                 for j in 0..(length - i - 1) {
                     yield j;
 
                     if self.0[j] > self.0[j + 1] {
                         self.0.swap(j, j + 1);
+                        swapped = true;
                     }
+                }
+
+                if !swapped {
+                    break;
                 }
             }
         }
