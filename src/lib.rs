@@ -93,7 +93,7 @@ pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
             }
 
             for index in Box::new(right_half.merge_sort()) {
-                yield index
+                yield middle + index
             }
 
             let (mut i, mut j, mut k) = (0, 0, 0);
