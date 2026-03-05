@@ -1,7 +1,5 @@
 #![windows_subsystem = "windows"]
 
-use std::iter;
-
 use algorithm_visualizer::Algorithm;
 use eframe::egui;
 
@@ -28,7 +26,8 @@ struct AlgorithmVisualizer {
 
 impl Default for AlgorithmVisualizer {
     fn default() -> Self {
-        let numbers = iter::repeat_with(|| fastrand::u8(..)).take(100).collect();
+        let mut numbers = (1..=100).collect::<Vec<u8>>();
+        fastrand::shuffle(&mut numbers);
 
         AlgorithmVisualizer {
             numbers,
