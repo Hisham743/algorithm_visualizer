@@ -1,5 +1,14 @@
 #![feature(gen_blocks)]
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Algorithm {
+    Bubble,
+    Selection,
+    Insertion,
+    Merge,
+    Quick,
+}
+
 pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
     fn bubble_sort(&mut self) -> impl Iterator<Item = usize> {
         gen move {
