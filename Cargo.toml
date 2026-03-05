@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 eframe = "0.33.3"
+egui_extras = { version = "0.33.3", features = ["image"] }
 fastrand = "2.3.0"
