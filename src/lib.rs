@@ -129,6 +129,38 @@ pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
             }
         }
     }
+
+    fn quick_sort(&mut self) -> impl Iterator<Item = usize> {
+        gen move {
+            let length = self.as_ref().len();
+            if length < 2 {
+                return;
+            }
+
+            let pivot = self.as_ref()[length - 1].clone();
+            let mut i = 0;
+
+            for j in 0..(length - 1) {
+                yield j;
+                if self.as_ref()[j] <= pivot {
+                    self.as_mut().swap(i, j);
+                    i += 1;
+                }
+            }
+
+            self.as_mut().swap(i, length - 1);
+
+            let (left, right) = self.as_mut().split_at_mut(i);
+
+            for index in Box::new(left.quick_sort()) {
+                yield index;
+            }
+
+            for index in Box::new(right[1..].quick_sort()) {
+                yield i + index + 1;
+            }
+        }
+    }
 }
 
 impl<T: Ord + Clone> Sort<T> for [T] {}
@@ -169,4 +201,5 @@ mod tests {
     test_algorithm!(selection_sort);
     test_algorithm!(insertion_sort);
     test_algorithm!(merge_sort);
+    test_algorithm!(quick_sort);
 }
