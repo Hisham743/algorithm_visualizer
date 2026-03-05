@@ -76,6 +76,59 @@ pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
             }
         }
     }
+
+    fn merge_sort(&mut self) -> impl Iterator<Item = usize> {
+        gen move {
+            let length = self.as_ref().len();
+            if length < 2 {
+                return;
+            }
+
+            let middle = length / 2;
+            let mut buffer = Box::new(self.as_ref().to_vec());
+            let (left_half, right_half) = buffer.split_at_mut(middle);
+
+            for index in Box::new(left_half.merge_sort()) {
+                yield index
+            }
+
+            for index in Box::new(right_half.merge_sort()) {
+                yield index
+            }
+
+            let (mut i, mut j, mut k) = (0, 0, 0);
+
+            while i < left_half.len() && j < right_half.len() {
+                yield k;
+
+                if left_half[i] < right_half[j] {
+                    self.as_mut()[k] = left_half[i].clone();
+                    i += 1;
+                } else {
+                    self.as_mut()[k] = right_half[j].clone();
+                    j += 1;
+                }
+
+                k += 1;
+            }
+
+            while i < left_half.len() {
+                yield k;
+
+                self.as_mut()[k] = left_half[i].clone();
+                i += 1;
+                k += 1;
+            }
+
+            while j < right_half.len() {
+                yield k;
+
+                self.as_mut()[k] = right_half[j].clone();
+                j += 1;
+                k += 1;
+            }
+        }
+    }
 }
 
 impl<T: Ord + Clone> Sort<T> for [T] {}
@@ -115,4 +168,5 @@ mod tests {
     test_algorithm!(bubble_sort);
     test_algorithm!(selection_sort);
     test_algorithm!(insertion_sort);
+    test_algorithm!(merge_sort);
 }
