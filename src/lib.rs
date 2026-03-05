@@ -1,6 +1,6 @@
 #![feature(gen_blocks)]
 
-pub trait Sort<T: Ord>: AsRef<[T]> + AsMut<[T]> {
+pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
     fn bubble_sort(&mut self) -> impl Iterator<Item = usize> {
         gen move {
             let length = self.as_ref().len();
@@ -172,7 +172,7 @@ pub trait Sort<T: Ord>: AsRef<[T]> + AsMut<[T]> {
     }
 }
 
-impl<T: Ord> Sort<T> for [T] {}
+impl<T: Ord> Sortable<T> for [T] {}
 
 #[cfg(test)]
 mod tests {
