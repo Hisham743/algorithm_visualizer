@@ -1,6 +1,6 @@
 #![feature(gen_blocks)]
 
-pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
+pub trait Sort<T: Ord>: AsRef<[T]> + AsMut<[T]> {
     fn bubble_sort(&mut self) -> impl Iterator<Item = usize> {
         gen move {
             let length = self.as_ref().len();
@@ -50,7 +50,10 @@ pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
         }
     }
 
-    fn insertion_sort(&mut self) -> impl Iterator<Item = usize> {
+    fn insertion_sort(&mut self) -> impl Iterator<Item = usize>
+    where
+        T: Clone,
+    {
         gen move {
             let length = self.as_ref().len();
             if length < 2 {
@@ -77,7 +80,10 @@ pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
         }
     }
 
-    fn merge_sort(&mut self) -> impl Iterator<Item = usize> {
+    fn merge_sort(&mut self) -> impl Iterator<Item = usize>
+    where
+        T: Clone,
+    {
         gen move {
             let length = self.as_ref().len();
             if length < 2 {
@@ -130,7 +136,10 @@ pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
         }
     }
 
-    fn quick_sort(&mut self) -> impl Iterator<Item = usize> {
+    fn quick_sort(&mut self) -> impl Iterator<Item = usize>
+    where
+        T: Clone,
+    {
         gen move {
             let length = self.as_ref().len();
             if length < 2 {
@@ -163,7 +172,7 @@ pub trait Sort<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
     }
 }
 
-impl<T: Ord + Clone> Sort<T> for [T] {}
+impl<T: Ord> Sort<T> for [T] {}
 
 #[cfg(test)]
 mod tests {
