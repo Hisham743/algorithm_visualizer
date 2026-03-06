@@ -1,5 +1,7 @@
 #![windows_subsystem = "windows"]
 
+use std::u8;
+
 use algorithm_visualizer::Algorithm;
 use eframe::egui;
 
@@ -107,6 +109,29 @@ impl AlgorithmVisualizer {
             });
         });
     }
+
+    fn sorting_panel(&mut self, ui: &mut egui::Ui) {
+        egui::Frame::canvas(ui.style()).show(ui, |ui| {
+            let (response, painter) =
+                ui.allocate_painter(ui.available_size(), egui::Sense::hover());
+
+            let area = response.rect;
+            let bar_width = area.width() / self.count as f32;
+            let bar_height_per_size = area.height() / self.count as f32;
+            self.numbers.iter().enumerate().for_each(|(index, number)| {
+                let left_x = area.min.x + bar_width * index as f32;
+                let right_x = left_x + bar_width;
+                let bottom_y = area.max.y;
+                let top_y = area.max.y - bar_height_per_size * *number as f32;
+
+                let bar = egui::Rect::from_two_pos(
+                    egui::pos2(left_x, bottom_y),
+                    egui::pos2(right_x, top_y),
+                );
+                painter.rect_filled(bar, 0., egui::Color32::from_gray(u8::MAX));
+            });
+        });
+    }
 }
 
 impl eframe::App for AlgorithmVisualizer {
@@ -115,6 +140,6 @@ impl eframe::App for AlgorithmVisualizer {
             .show_separator_line(false)
             .show(ctx, |ui| self.options_panel(ui));
 
-        egui::CentralPanel::default().show(ctx, |ui| {});
+        egui::CentralPanel::default().show(ctx, |ui| self.sorting_panel(ui));
     }
 }
