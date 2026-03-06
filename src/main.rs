@@ -21,7 +21,7 @@ enum SortingState {
 
 struct AlgorithmVisualizer {
     numbers: Vec<u16>,
-    count: usize,
+    count: u16,
     state: SortingState,
     algorithm: Algorithm,
 }
@@ -94,8 +94,13 @@ impl AlgorithmVisualizer {
                 .response
                 .on_hover_text("Algorithm");
 
-            ui.add_enabled(is_stopped, egui::Button::image(randomize_icon))
-                .on_hover_text("Randomize");
+            if ui
+                .add_enabled(is_stopped, egui::Button::image(randomize_icon))
+                .on_hover_text("Randomize")
+                .clicked()
+            {
+                fastrand::shuffle(&mut self.numbers);
+            }
 
             ui.add(egui::Button::image(resume_pause_icon))
                 .on_hover_text(resume_pause_tooltip);
@@ -104,8 +109,13 @@ impl AlgorithmVisualizer {
                 .on_hover_text("Stop");
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.add_enabled(is_stopped, egui::Slider::new(&mut self.count, 10..=1000))
-                    .on_hover_text("Number of elements");
+                if ui
+                    .add_enabled(is_stopped, egui::Slider::new(&mut self.count, 10..=1000))
+                    .on_hover_text("Number of elements")
+                    .dragged()
+                {
+                    self.numbers = (1..=self.count).collect();
+                }
             });
         });
     }
