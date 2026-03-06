@@ -13,6 +13,7 @@ fn main() -> eframe::Result {
     )
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SortingState {
     Running,
     Paused,
@@ -52,14 +53,13 @@ impl AlgorithmVisualizer {
         let pause_icon = egui::include_image!("./images/pause.png");
         let stop_icon = egui::include_image!("./images/stop.png");
 
-        let (resume_pause_icon, resume_pause_tooltip) =
-            if matches!(self.state, SortingState::Running) {
-                (pause_icon, "Pause")
-            } else {
-                (resume_icon, "Sort")
-            };
+        let (resume_pause_icon, resume_pause_tooltip) = if self.state == SortingState::Running {
+            (pause_icon, "Pause")
+        } else {
+            (resume_icon, "Sort")
+        };
 
-        let is_stopped = matches!(self.state, SortingState::Stopped);
+        let is_stopped = self.state == SortingState::Stopped;
 
         ui.horizontal(|ui| {
             egui::ComboBox::from_id_salt("Algorithm")
