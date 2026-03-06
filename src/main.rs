@@ -20,7 +20,7 @@ enum SortingState {
 }
 
 struct AlgorithmVisualizer {
-    numbers: Vec<u8>,
+    numbers: Vec<u16>,
     count: usize,
     state: SortingState,
     algorithm: Algorithm,
@@ -28,7 +28,7 @@ struct AlgorithmVisualizer {
 
 impl Default for AlgorithmVisualizer {
     fn default() -> Self {
-        let mut numbers = (1..=100).collect::<Vec<u8>>();
+        let mut numbers = (1..=100).collect::<Vec<u16>>();
         fastrand::shuffle(&mut numbers);
 
         AlgorithmVisualizer {
