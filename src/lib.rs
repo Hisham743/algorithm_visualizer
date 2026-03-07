@@ -1,287 +1,296 @@
 #![feature(gen_blocks)]
 
-use std::fmt::Display;
+mod algorithms;
+
+use eframe::egui;
+use std::{
+    sync::mpsc::{self, Receiver, Sender},
+    thread,
+    time::Duration,
+};
+
+use algorithms::{Algorithm, Snapshot, Sortable};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Algorithm {
-    Bubble,
-    Selection,
-    Insertion,
-    Merge,
-    Quick,
+enum SortingState {
+    Idle,
+    Running,
+    Paused,
 }
 
-impl Display for Algorithm {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} Sort", &self)
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Input {
+    Shuffle,
+    CountChange(u16),
+    SortingStateChange(SortingState),
+    AlgorithmChange(Algorithm),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Snapshot<T: Ord + Clone> {
-    pub numbers: Vec<T>,
-    pub active_element: Option<usize>,
+pub struct AlgorithmVisualizer {
+    count: u16,
+    state: SortingState,
+    algorithm: Algorithm,
+    snapshot: Snapshot<u16>,
+    input_tx: Sender<Input>,
+    data_rx: Receiver<Option<Snapshot<u16>>>,
 }
 
-pub trait Sortable<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
-    fn bubble_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
-            }
+impl Default for AlgorithmVisualizer {
+    fn default() -> Self {
+        let mut numbers = (1..=100).collect::<Vec<u16>>();
+        fastrand::shuffle(&mut numbers);
 
-            for i in 0..(length - 1) {
-                let mut swapped = false;
+        let (input_tx, input_rx) = mpsc::channel();
+        let (data_tx, data_rx) = mpsc::channel();
+        Self::sorting_thread(numbers.clone(), input_rx, data_tx);
 
-                for j in 0..(length - i - 1) {
-                    yield Snapshot {
-                        numbers: self.as_ref().to_vec(),
-                        active_element: Some(j),
-                    };
-
-                    if self.as_ref()[j] > self.as_ref()[j + 1] {
-                        self.as_mut().swap(j, j + 1);
-                        swapped = true;
-                    }
-                }
-
-                if !swapped {
-                    break;
-                }
-            }
-
-            yield Snapshot {
-                numbers: self.as_ref().to_vec(),
-                active_element: None,
-            };
-        }
-    }
-
-    fn selection_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
-            }
-
-            for i in 0..(length - 1) {
-                let mut min_index = i;
-
-                for j in (i + 1)..length {
-                    yield Snapshot {
-                        numbers: self.as_ref().to_vec(),
-                        active_element: Some(j),
-                    };
-
-                    if self.as_ref()[j] < self.as_ref()[min_index] {
-                        min_index = j;
-                    }
-                }
-
-                self.as_mut().swap(i, min_index);
-            }
-
-            yield Snapshot {
-                numbers: self.as_ref().to_vec(),
-                active_element: None,
-            };
-        }
-    }
-
-    fn insertion_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
-            }
-
-            for i in 1..length {
-                let mut insert_index = i;
-                let current_value = self.as_ref()[i].clone();
-
-                for j in (0..i).rev() {
-                    yield Snapshot {
-                        numbers: self.as_ref().to_vec(),
-                        active_element: Some(j),
-                    };
-
-                    if self.as_ref()[j] > current_value {
-                        self.as_mut()[j + 1] = self.as_ref()[j].clone();
-                        insert_index = j;
-                    } else {
-                        break;
-                    }
-                }
-
-                self.as_mut()[insert_index] = current_value;
-            }
-
-            yield Snapshot {
-                numbers: self.as_ref().to_vec(),
-                active_element: None,
-            };
-        }
-    }
-
-    fn merge_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
-            }
-
-            let middle = length / 2;
-            let mut buffer = Box::new(self.as_ref().to_vec());
-            let (left_half, right_half) = buffer.split_at_mut(middle);
-
-            for mut snapshot in Box::new(left_half.merge_sort()) {
-                snapshot.numbers.extend_from_slice(right_half);
-                yield snapshot;
-            }
-
-            for snapshot in Box::new(right_half.merge_sort()) {
-                let mut full = Vec::with_capacity(middle + snapshot.numbers.len());
-                full.extend_from_slice(left_half);
-                full.extend_from_slice(&snapshot.numbers);
-
-                let active_element = snapshot.active_element.map(|index| middle + index);
-                yield Snapshot {
-                    numbers: full,
-                    active_element,
-                }
-            }
-
-            let (mut i, mut j, mut k) = (0, 0, 0);
-
-            while i < left_half.len() && j < right_half.len() {
-                yield Snapshot {
-                    numbers: self.as_ref().to_vec(),
-                    active_element: Some(k),
-                };
-
-                if left_half[i] < right_half[j] {
-                    self.as_mut()[k] = left_half[i].clone();
-                    i += 1;
-                } else {
-                    self.as_mut()[k] = right_half[j].clone();
-                    j += 1;
-                }
-
-                k += 1;
-            }
-
-            while i < left_half.len() {
-                yield Snapshot {
-                    numbers: self.as_ref().to_vec(),
-                    active_element: Some(k),
-                };
-                self.as_mut()[k] = left_half[i].clone();
-                i += 1;
-                k += 1;
-            }
-
-            while j < right_half.len() {
-                yield Snapshot {
-                    numbers: self.as_ref().to_vec(),
-                    active_element: Some(k),
-                };
-
-                self.as_mut()[k] = right_half[j].clone();
-                j += 1;
-                k += 1;
-            }
-
-            yield Snapshot {
-                numbers: self.as_ref().to_vec(),
-                active_element: None,
-            };
-        }
-    }
-
-    fn quick_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
-            }
-
-            let pivot = self.as_ref()[length - 1].clone();
-            let mut i = 0;
-
-            for j in 0..(length - 1) {
-                yield Snapshot {
-                    numbers: self.as_ref().to_vec(),
-                    active_element: Some(j),
-                };
-
-                if self.as_ref()[j] <= pivot {
-                    self.as_mut().swap(i, j);
-                    i += 1;
-                }
-            }
-
-            self.as_mut().swap(i, length - 1);
-
-            let (left, right) = self.as_mut().split_at_mut(i);
-
-            for mut snapshot in Box::new(left.quick_sort()) {
-                snapshot.numbers.extend_from_slice(right);
-                yield snapshot;
-            }
-
-            for snapshot in Box::new(right.quick_sort()) {
-                let mut full = Vec::with_capacity(i + snapshot.numbers.len() + 1);
-                full.extend_from_slice(left);
-                full.extend_from_slice(&snapshot.numbers);
-
-                let active_element = snapshot.active_element.map(|index| i + index + 1);
-                yield Snapshot {
-                    numbers: full,
-                    active_element,
-                }
-            }
-        }
-    }
-}
-
-impl<T: Ord + Clone> Sortable<T> for [T] {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::iter;
-
-    macro_rules! test_algorithm {
-        ($algorithm:ident) => {
-            #[test]
-            fn $algorithm() {
-                let mut numbers = Vec::new();
-
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "empty case");
-
-                numbers.push(fastrand::i32(..));
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "single case");
-
-                numbers = iter::repeat_with(|| fastrand::i32(..)).take(100).collect();
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "100 case");
-
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "sorted case");
-
-                numbers.reverse();
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "reverse case");
-            }
+        let snapshot = Snapshot {
+            numbers,
+            active_element: None,
         };
+
+        AlgorithmVisualizer {
+            count: 100,
+            state: SortingState::Idle,
+            algorithm: Algorithm::Bubble,
+            snapshot,
+            input_tx,
+            data_rx,
+        }
+    }
+}
+
+impl AlgorithmVisualizer {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        egui_extras::install_image_loaders(&cc.egui_ctx);
+        Self::default()
     }
 
-    test_algorithm!(bubble_sort);
-    test_algorithm!(selection_sort);
-    test_algorithm!(insertion_sort);
-    test_algorithm!(merge_sort);
-    test_algorithm!(quick_sort);
+    fn sorting_thread(
+        mut numbers: Vec<u16>,
+        input_rx: Receiver<Input>,
+        data_tx: Sender<Option<Snapshot<u16>>>,
+    ) {
+        fn algorithm_iterator(
+            algorithm: Algorithm,
+        ) -> fn(&mut [u16]) -> Box<dyn Iterator<Item = Snapshot<u16>> + '_> {
+            match algorithm {
+                Algorithm::Bubble => |slice| Box::new(Sortable::bubble_sort(slice)),
+                Algorithm::Selection => |slice| Box::new(Sortable::selection_sort(slice)),
+                Algorithm::Insertion => |slice| Box::new(Sortable::insertion_sort(slice)),
+                Algorithm::Merge => |slice| Box::new(Sortable::merge_sort(slice)),
+                Algorithm::Quick => |slice| Box::new(Sortable::quick_sort(slice)),
+            }
+        }
+
+        thread::spawn(move || {
+            let mut algorithm = Algorithm::Bubble;
+            let mut algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
+
+            let mut sorting_state = SortingState::Idle;
+
+            loop {
+                if sorting_state == SortingState::Running {
+                    if let Some(ref mut steps) = algorithm_steps {
+                        let step = steps.next();
+
+                        if step.is_none() {
+                            sorting_state = SortingState::Idle;
+                            drop(algorithm_steps);
+                            algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
+                        }
+
+                        data_tx.send(step).unwrap();
+                    }
+                }
+
+                if let Ok(input) = input_rx.try_recv() {
+                    match input {
+                        Input::Shuffle => {
+                            algorithm_steps = None;
+                            fastrand::shuffle(&mut numbers);
+                        }
+                        Input::CountChange(count) => {
+                            algorithm_steps = None;
+                            numbers = (1..=count).collect();
+                        }
+                        Input::AlgorithmChange(alg) => algorithm = alg,
+                        Input::SortingStateChange(state) => sorting_state = state,
+                    }
+
+                    if !matches!(
+                        input,
+                        Input::SortingStateChange(SortingState::Running | SortingState::Paused)
+                    ) {
+                        drop(algorithm_steps);
+                        let snapshot = Snapshot {
+                            numbers: numbers.clone(),
+                            active_element: None,
+                        };
+                        data_tx.send(Some(snapshot)).unwrap();
+                        algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
+                    }
+                }
+
+                thread::sleep(Duration::from_millis(1000 / 60 as u64));
+            }
+        });
+    }
+
+    fn options_panel(&mut self, ui: &mut egui::Ui) {
+        let randomize_icon = egui::include_image!("./images/randomize.png");
+        let resume_icon = egui::include_image!("./images/resume.png");
+        let pause_icon = egui::include_image!("./images/pause.png");
+        let stop_icon = egui::include_image!("./images/stop.png");
+
+        let (resume_pause_icon, resume_pause_tooltip, next_state) =
+            if self.state == SortingState::Running {
+                (pause_icon, "Pause", SortingState::Paused)
+            } else {
+                (resume_icon, "Sort", SortingState::Running)
+            };
+
+        let is_stopped = self.state == SortingState::Idle;
+
+        ui.horizontal(|ui| {
+            ui.add_enabled_ui(is_stopped, |ui| {
+                let before = self.algorithm;
+
+                egui::ComboBox::from_id_salt("Algorithm")
+                    .selected_text(&self.algorithm.to_string())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Bubble,
+                            Algorithm::Bubble.to_string(),
+                        );
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Selection,
+                            Algorithm::Selection.to_string(),
+                        );
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Insertion,
+                            Algorithm::Insertion.to_string(),
+                        );
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Merge,
+                            Algorithm::Merge.to_string(),
+                        );
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Quick,
+                            Algorithm::Quick.to_string(),
+                        );
+                    })
+                    .response
+                    .on_hover_text("Algorithm");
+
+                if self.algorithm != before {
+                    self.input_tx
+                        .send(Input::AlgorithmChange(self.algorithm))
+                        .unwrap();
+                }
+            });
+
+            if ui
+                .add_enabled(is_stopped, egui::Button::image(randomize_icon))
+                .on_hover_text("Randomize")
+                .clicked()
+            {
+                self.input_tx.send(Input::Shuffle).unwrap();
+            }
+
+            if ui
+                .add(egui::Button::image(resume_pause_icon))
+                .on_hover_text(resume_pause_tooltip)
+                .clicked()
+            {
+                self.input_tx
+                    .send(Input::SortingStateChange(next_state))
+                    .unwrap();
+
+                self.state = next_state;
+            }
+
+            if ui
+                .add_enabled(!is_stopped, egui::Button::image(stop_icon))
+                .on_hover_text("Stop")
+                .clicked()
+            {
+                self.input_tx
+                    .send(Input::SortingStateChange(SortingState::Idle))
+                    .unwrap();
+
+                self.state = SortingState::Idle;
+            };
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .add_enabled(is_stopped, egui::Slider::new(&mut self.count, 10..=1000))
+                    .on_hover_text("Number of elements")
+                    .changed()
+                {
+                    self.input_tx.send(Input::CountChange(self.count)).unwrap();
+                }
+            });
+        });
+    }
+
+    fn sorting_panel(&mut self, ui: &mut egui::Ui) {
+        egui::Frame::canvas(ui.style()).show(ui, |ui| {
+            let (response, painter) =
+                ui.allocate_painter(ui.available_size(), egui::Sense::hover());
+
+            if let Ok(data) = self.data_rx.try_recv() {
+                match data {
+                    Some(snapshot) => self.snapshot = snapshot,
+                    None => self.state = SortingState::Idle,
+                }
+            }
+
+            let area = response.rect;
+            let bar_width = area.width() / self.count as f32;
+            let bar_height_per_size = area.height() / self.count as f32;
+            self.snapshot
+                .numbers
+                .iter()
+                .enumerate()
+                .for_each(|(index, number)| {
+                    let left_x = area.min.x + bar_width * index as f32;
+                    let right_x = left_x + bar_width;
+                    let bottom_y = area.max.y;
+                    let top_y = area.max.y - bar_height_per_size * *number as f32;
+
+                    let bar = egui::Rect::from_two_pos(
+                        egui::pos2(left_x, bottom_y),
+                        egui::pos2(right_x, top_y),
+                    );
+
+                    let colour = if let Some(active_index) = self.snapshot.active_element
+                        && active_index == index
+                    {
+                        egui::Color32::from_rgb(u8::MAX, 0, 0)
+                    } else {
+                        egui::Color32::from_gray(u8::MAX)
+                    };
+
+                    painter.rect_filled(bar, 0., colour);
+                });
+        });
+    }
+}
+
+impl eframe::App for AlgorithmVisualizer {
+    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        egui::TopBottomPanel::top("options")
+            .show_separator_line(false)
+            .show(ctx, |ui| self.options_panel(ui));
+
+        egui::CentralPanel::default().show(ctx, |ui| self.sorting_panel(ui));
+
+        ctx.request_repaint_after(Duration::from_millis(1000 / 60 as u64));
+    }
 }
