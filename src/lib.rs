@@ -17,8 +17,8 @@ impl Display for Algorithm {
     }
 }
 
-pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
-    fn bubble_sort(&mut self) -> impl Iterator<Item = usize> {
+pub trait Sortable<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
+    fn bubble_sort(&mut self) -> impl Iterator<Item = (Vec<T>, Option<usize>)> {
         gen move {
             let length = self.as_ref().len();
             if length < 2 {
@@ -29,7 +29,7 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
                 let mut swapped = false;
 
                 for j in 0..(length - i - 1) {
-                    yield j;
+                    yield (self.as_ref().to_vec(), Some(j));
 
                     if self.as_ref()[j] > self.as_ref()[j + 1] {
                         self.as_mut().swap(j, j + 1);
@@ -41,10 +41,12 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
                     break;
                 }
             }
+
+            yield (self.as_ref().to_vec(), None)
         }
     }
 
-    fn selection_sort(&mut self) -> impl Iterator<Item = usize> {
+    fn selection_sort(&mut self) -> impl Iterator<Item = (Vec<T>, Option<usize>)> {
         gen move {
             let length = self.as_ref().len();
             if length < 2 {
@@ -55,7 +57,7 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
                 let mut min_index = i;
 
                 for j in (i + 1)..length {
-                    yield j;
+                    yield (self.as_ref().to_vec(), Some(j));
 
                     if self.as_ref()[j] < self.as_ref()[min_index] {
                         min_index = j;
@@ -64,13 +66,12 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
 
                 self.as_mut().swap(i, min_index);
             }
+
+            yield (self.as_ref().to_vec(), None)
         }
     }
 
-    fn insertion_sort(&mut self) -> impl Iterator<Item = usize>
-    where
-        T: Clone,
-    {
+    fn insertion_sort(&mut self) -> impl Iterator<Item = (Vec<T>, Option<usize>)> {
         gen move {
             let length = self.as_ref().len();
             if length < 2 {
@@ -82,7 +83,7 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
                 let current_value = self.as_ref()[i].clone();
 
                 for j in (0..i).rev() {
-                    yield j;
+                    yield (self.as_ref().to_vec(), Some(j));
 
                     if self.as_ref()[j] > current_value {
                         self.as_mut()[j + 1] = self.as_ref()[j].clone();
@@ -94,13 +95,12 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
 
                 self.as_mut()[insert_index] = current_value;
             }
+
+            yield (self.as_ref().to_vec(), None)
         }
     }
 
-    fn merge_sort(&mut self) -> impl Iterator<Item = usize>
-    where
-        T: Clone,
-    {
+    fn merge_sort(&mut self) -> impl Iterator<Item = (Vec<T>, Option<usize>)> {
         gen move {
             let length = self.as_ref().len();
             if length < 2 {
@@ -111,18 +111,23 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
             let mut buffer = Box::new(self.as_ref().to_vec());
             let (left_half, right_half) = buffer.split_at_mut(middle);
 
-            for index in Box::new(left_half.merge_sort()) {
-                yield index
+            for (mut snapshot, index) in Box::new(left_half.merge_sort()) {
+                snapshot.extend_from_slice(right_half);
+                yield (snapshot, index);
             }
 
-            for index in Box::new(right_half.merge_sort()) {
-                yield middle + index
+            for (snapshot, index) in Box::new(right_half.merge_sort()) {
+                let mut full = Vec::with_capacity(middle + snapshot.len());
+                full.extend_from_slice(left_half);
+                full.extend_from_slice(&snapshot);
+
+                yield (full, index.map(|index| middle + index));
             }
 
             let (mut i, mut j, mut k) = (0, 0, 0);
 
             while i < left_half.len() && j < right_half.len() {
-                yield k;
+                yield (self.as_ref().to_vec(), Some(k));
 
                 if left_half[i] < right_half[j] {
                     self.as_mut()[k] = left_half[i].clone();
@@ -136,7 +141,7 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
             }
 
             while i < left_half.len() {
-                yield k;
+                yield (self.as_ref().to_vec(), Some(k));
 
                 self.as_mut()[k] = left_half[i].clone();
                 i += 1;
@@ -144,19 +149,18 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
             }
 
             while j < right_half.len() {
-                yield k;
+                yield (self.as_ref().to_vec(), Some(k));
 
                 self.as_mut()[k] = right_half[j].clone();
                 j += 1;
                 k += 1;
             }
+
+            yield (self.as_ref().to_vec(), None)
         }
     }
 
-    fn quick_sort(&mut self) -> impl Iterator<Item = usize>
-    where
-        T: Clone,
-    {
+    fn quick_sort(&mut self) -> impl Iterator<Item = (Vec<T>, Option<usize>)> {
         gen move {
             let length = self.as_ref().len();
             if length < 2 {
@@ -167,7 +171,7 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
             let mut i = 0;
 
             for j in 0..(length - 1) {
-                yield j;
+                yield (self.as_ref().to_vec(), Some(j));
                 if self.as_ref()[j] <= pivot {
                     self.as_mut().swap(i, j);
                     i += 1;
@@ -178,18 +182,23 @@ pub trait Sortable<T: Ord>: AsRef<[T]> + AsMut<[T]> {
 
             let (left, right) = self.as_mut().split_at_mut(i);
 
-            for index in Box::new(left.quick_sort()) {
-                yield index;
+            for (mut snapshot, index) in Box::new(left.merge_sort()) {
+                snapshot.extend_from_slice(right);
+                yield (snapshot, index);
             }
 
-            for index in Box::new(right[1..].quick_sort()) {
-                yield i + index + 1;
+            for (snapshot, index) in Box::new(right.merge_sort()) {
+                let mut full = Vec::with_capacity(i + snapshot.len() + 1);
+                full.extend_from_slice(left);
+                full.extend_from_slice(&snapshot);
+
+                yield (full, index.map(|index| i + index + 1));
             }
         }
     }
 }
 
-impl<T: Ord> Sortable<T> for [T] {}
+impl<T: Ord + Clone> Sortable<T> for [T] {}
 
 #[cfg(test)]
 mod tests {
