@@ -51,26 +51,9 @@ impl Default for AlgorithmVisualizer {
 
         let (input_tx, input_rx) = mpsc::channel();
         let (active_element_tx, active_element_rx) = mpsc::channel();
-
         let numbers_clone = Arc::clone(&numbers);
-        thread::spawn(move || {
-            let numbers = numbers_clone;
 
-            loop {
-                match input_rx.try_recv() {
-                    Ok(input) => match input {
-                        Input::Shuffle => fastrand::shuffle(&mut numbers.lock().unwrap()),
-                        Input::CountChange(count) => {
-                            *numbers.lock().unwrap() = (1..=count).collect()
-                        }
-                        Input::AlgorithmChange(algorithm) => unimplemented!(),
-                        Input::SortingStateChange(state) => unimplemented!(),
-                    },
-                    Err(TryRecvError::Empty) => unimplemented!(),
-                    Err(TryRecvError::Disconnected) => unimplemented!(),
-                }
-            }
-        });
+        Self::sorting_thread(numbers_clone, input_rx, active_element_tx);
 
         AlgorithmVisualizer {
             numbers,
@@ -87,6 +70,31 @@ impl AlgorithmVisualizer {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         Self::default()
+    }
+
+    fn sorting_thread(
+        numbers: Arc<Mutex<Vec<u16>>>,
+        input_rx: Receiver<Input>,
+        active_element_tx: Sender<usize>,
+    ) {
+        thread::spawn(move || {
+            let mut algorithm = Algorithm::Bubble;
+
+            loop {
+                match input_rx.try_recv() {
+                    Ok(input) => match input {
+                        Input::Shuffle => fastrand::shuffle(&mut numbers.lock().unwrap()),
+                        Input::CountChange(count) => {
+                            *numbers.lock().unwrap() = (1..=count).collect()
+                        }
+                        Input::AlgorithmChange(algorithm) => unimplemented!(),
+                        Input::SortingStateChange(state) => unimplemented!(),
+                    },
+                    Err(TryRecvError::Empty) => unimplemented!(),
+                    Err(TryRecvError::Disconnected) => unimplemented!(),
+                }
+            }
+        });
     }
 
     fn options_panel(&mut self, ui: &mut egui::Ui) {
