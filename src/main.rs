@@ -1,6 +1,12 @@
 #![windows_subsystem = "windows"]
 
-use std::u8;
+use std::{
+    sync::{
+        Arc, Mutex,
+        mpsc::{self, Receiver, Sender, TryRecvError},
+    },
+    thread,
+};
 
 use algorithm_visualizer::Algorithm;
 use eframe::egui;
@@ -15,28 +21,64 @@ fn main() -> eframe::Result {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SortingState {
-    Running,
-    Paused,
-    Stopped,
+    Idle,
+    Run,
+    Pause,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Input {
+    Shuffle,
+    CountChange(u16),
+    SortingStateChange(SortingState),
+    AlgorithmChange(Algorithm),
 }
 
 struct AlgorithmVisualizer {
-    numbers: Vec<u16>,
+    numbers: Arc<Mutex<Vec<u16>>>,
     count: u16,
     state: SortingState,
     algorithm: Algorithm,
+    input_tx: Sender<Input>,
+    active_element_rx: Receiver<usize>,
 }
 
 impl Default for AlgorithmVisualizer {
     fn default() -> Self {
         let mut numbers = (1..=100).collect::<Vec<u16>>();
         fastrand::shuffle(&mut numbers);
+        let numbers = Arc::new(Mutex::new(numbers));
+
+        let (input_tx, input_rx) = mpsc::channel();
+        let (active_element_tx, active_element_rx) = mpsc::channel();
+
+        let numbers_clone = Arc::clone(&numbers);
+        thread::spawn(move || {
+            let numbers = numbers_clone;
+
+            loop {
+                match input_rx.try_recv() {
+                    Ok(input) => match input {
+                        Input::Shuffle => fastrand::shuffle(&mut numbers.lock().unwrap()),
+                        Input::CountChange(count) => {
+                            *numbers.lock().unwrap() = (1..=count).collect()
+                        }
+                        Input::AlgorithmChange(algorithm) => unimplemented!(),
+                        Input::SortingStateChange(state) => unimplemented!(),
+                    },
+                    Err(TryRecvError::Empty) => unimplemented!(),
+                    Err(TryRecvError::Disconnected) => unimplemented!(),
+                }
+            }
+        });
 
         AlgorithmVisualizer {
             numbers,
             count: 100,
-            state: SortingState::Stopped,
+            state: SortingState::Idle,
             algorithm: Algorithm::Bubble,
+            input_tx,
+            active_element_rx,
         }
     }
 }
@@ -53,13 +95,13 @@ impl AlgorithmVisualizer {
         let pause_icon = egui::include_image!("./images/pause.png");
         let stop_icon = egui::include_image!("./images/stop.png");
 
-        let (resume_pause_icon, resume_pause_tooltip) = if self.state == SortingState::Running {
+        let (resume_pause_icon, resume_pause_tooltip) = if self.state == SortingState::Run {
             (pause_icon, "Pause")
         } else {
             (resume_icon, "Sort")
         };
 
-        let is_stopped = self.state == SortingState::Stopped;
+        let is_stopped = self.state == SortingState::Idle;
 
         ui.horizontal(|ui| {
             egui::ComboBox::from_id_salt("Algorithm")
@@ -99,7 +141,7 @@ impl AlgorithmVisualizer {
                 .on_hover_text("Randomize")
                 .clicked()
             {
-                fastrand::shuffle(&mut self.numbers);
+                fastrand::shuffle(&mut self.numbers.lock().unwrap());
             }
 
             ui.add(egui::Button::image(resume_pause_icon))
@@ -114,7 +156,7 @@ impl AlgorithmVisualizer {
                     .on_hover_text("Number of elements")
                     .dragged()
                 {
-                    self.numbers = (1..=self.count).collect();
+                    self.input_tx.send(Input::CountChange(self.count)).unwrap();
                 }
             });
         });
@@ -128,18 +170,23 @@ impl AlgorithmVisualizer {
             let area = response.rect;
             let bar_width = area.width() / self.count as f32;
             let bar_height_per_size = area.height() / self.count as f32;
-            self.numbers.iter().enumerate().for_each(|(index, number)| {
-                let left_x = area.min.x + bar_width * index as f32;
-                let right_x = left_x + bar_width;
-                let bottom_y = area.max.y;
-                let top_y = area.max.y - bar_height_per_size * *number as f32;
+            self.numbers
+                .lock()
+                .unwrap()
+                .iter()
+                .enumerate()
+                .for_each(|(index, number)| {
+                    let left_x = area.min.x + bar_width * index as f32;
+                    let right_x = left_x + bar_width;
+                    let bottom_y = area.max.y;
+                    let top_y = area.max.y - bar_height_per_size * *number as f32;
 
-                let bar = egui::Rect::from_two_pos(
-                    egui::pos2(left_x, bottom_y),
-                    egui::pos2(right_x, top_y),
-                );
-                painter.rect_filled(bar, 0., egui::Color32::from_gray(u8::MAX));
-            });
+                    let bar = egui::Rect::from_two_pos(
+                        egui::pos2(left_x, bottom_y),
+                        egui::pos2(right_x, top_y),
+                    );
+                    painter.rect_filled(bar, 0., egui::Color32::from_gray(u8::MAX));
+                });
         });
     }
 }
