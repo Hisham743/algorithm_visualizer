@@ -182,12 +182,12 @@ pub trait Sortable<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
 
             let (left, right) = self.as_mut().split_at_mut(i);
 
-            for (mut snapshot, index) in Box::new(left.merge_sort()) {
+            for (mut snapshot, index) in Box::new(left.quick_sort()) {
                 snapshot.extend_from_slice(right);
                 yield (snapshot, index);
             }
 
-            for (snapshot, index) in Box::new(right.merge_sort()) {
+            for (snapshot, index) in Box::new(right.quick_sort()) {
                 let mut full = Vec::with_capacity(i + snapshot.len() + 1);
                 full.extend_from_slice(left);
                 full.extend_from_slice(&snapshot);
