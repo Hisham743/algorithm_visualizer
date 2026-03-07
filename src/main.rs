@@ -1,14 +1,12 @@
 #![windows_subsystem = "windows"]
 
 use std::{
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, Sender, TryRecvError},
-    },
+    sync::mpsc::{self, Receiver, Sender},
     thread,
+    time::Duration,
 };
 
-use algorithm_visualizer::Algorithm;
+use algorithm_visualizer::{Algorithm, Sortable};
 use eframe::egui;
 
 fn main() -> eframe::Result {
@@ -35,33 +33,33 @@ enum Input {
 }
 
 struct AlgorithmVisualizer {
-    numbers: Arc<Mutex<Vec<u16>>>,
+    numbers: Vec<u16>,
+    active_element: Option<usize>,
     count: u16,
     state: SortingState,
     algorithm: Algorithm,
     input_tx: Sender<Input>,
-    active_element_rx: Receiver<usize>,
+    data_rx: Receiver<Option<(Vec<u16>, Option<usize>)>>,
 }
 
 impl Default for AlgorithmVisualizer {
     fn default() -> Self {
         let mut numbers = (1..=100).collect::<Vec<u16>>();
         fastrand::shuffle(&mut numbers);
-        let numbers = Arc::new(Mutex::new(numbers));
 
         let (input_tx, input_rx) = mpsc::channel();
-        let (active_element_tx, active_element_rx) = mpsc::channel();
-        let numbers_clone = Arc::clone(&numbers);
+        let (data_tx, data_rx) = mpsc::channel();
 
-        Self::sorting_thread(numbers_clone, input_rx, active_element_tx);
+        Self::sorting_thread(numbers.clone(), input_rx, data_tx);
 
         AlgorithmVisualizer {
             numbers,
+            active_element: None,
             count: 100,
             state: SortingState::Idle,
             algorithm: Algorithm::Bubble,
             input_tx,
-            active_element_rx,
+            data_rx,
         }
     }
 }
@@ -73,26 +71,69 @@ impl AlgorithmVisualizer {
     }
 
     fn sorting_thread(
-        numbers: Arc<Mutex<Vec<u16>>>,
+        mut numbers: Vec<u16>,
         input_rx: Receiver<Input>,
-        active_element_tx: Sender<usize>,
+        data_tx: Sender<Option<(Vec<u16>, Option<usize>)>>,
     ) {
+        fn algorithm_iterator(
+            algorithm: Algorithm,
+        ) -> fn(&mut [u16]) -> Box<dyn Iterator<Item = (Vec<u16>, Option<usize>)> + '_> {
+            match algorithm {
+                Algorithm::Bubble => |slice| Box::new(Sortable::bubble_sort(slice)),
+                Algorithm::Selection => |slice| Box::new(Sortable::selection_sort(slice)),
+                Algorithm::Insertion => |slice| Box::new(Sortable::insertion_sort(slice)),
+                Algorithm::Merge => |slice| Box::new(Sortable::merge_sort(slice)),
+                Algorithm::Quick => |slice| Box::new(Sortable::quick_sort(slice)),
+            }
+        }
+
         thread::spawn(move || {
             let mut algorithm = Algorithm::Bubble;
+            let mut algorithm_steps: Option<Box<dyn Iterator<Item = (Vec<u16>, Option<usize>)>>> =
+                Some(algorithm_iterator(algorithm)(&mut numbers));
+
+            let mut sorting_state = SortingState::Idle;
 
             loop {
-                match input_rx.try_recv() {
-                    Ok(input) => match input {
-                        Input::Shuffle => fastrand::shuffle(&mut numbers.lock().unwrap()),
-                        Input::CountChange(count) => {
-                            *numbers.lock().unwrap() = (1..=count).collect()
+                if sorting_state == SortingState::Run {
+                    if let Some(ref mut steps) = algorithm_steps {
+                        let step = steps.next();
+
+                        if step.is_none() {
+                            sorting_state = SortingState::Idle;
+                            drop(algorithm_steps);
+                            algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
                         }
-                        Input::AlgorithmChange(algorithm) => unimplemented!(),
-                        Input::SortingStateChange(state) => unimplemented!(),
-                    },
-                    Err(TryRecvError::Empty) => unimplemented!(),
-                    Err(TryRecvError::Disconnected) => unimplemented!(),
+
+                        data_tx.send(step).unwrap();
+                    }
                 }
+
+                if let Ok(input) = input_rx.try_recv() {
+                    match input {
+                        Input::Shuffle => {
+                            algorithm_steps = None;
+                            fastrand::shuffle(&mut numbers);
+                        }
+                        Input::CountChange(count) => {
+                            algorithm_steps = None;
+                            numbers = (1..=count).collect();
+                        }
+                        Input::AlgorithmChange(alg) => algorithm = alg,
+                        Input::SortingStateChange(state) => sorting_state = state,
+                    }
+
+                    if !matches!(
+                        input,
+                        Input::SortingStateChange(SortingState::Run | SortingState::Pause)
+                    ) {
+                        drop(algorithm_steps);
+                        data_tx.send(Some((numbers.clone(), None))).unwrap();
+                        algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
+                    }
+                }
+
+                thread::sleep(Duration::from_millis(1000 / 60 as u64));
             }
         });
     }
@@ -103,66 +144,95 @@ impl AlgorithmVisualizer {
         let pause_icon = egui::include_image!("./images/pause.png");
         let stop_icon = egui::include_image!("./images/stop.png");
 
-        let (resume_pause_icon, resume_pause_tooltip) = if self.state == SortingState::Run {
-            (pause_icon, "Pause")
-        } else {
-            (resume_icon, "Sort")
-        };
+        let (resume_pause_icon, resume_pause_tooltip, next_state) =
+            if self.state == SortingState::Run {
+                (pause_icon, "Pause", SortingState::Pause)
+            } else {
+                (resume_icon, "Sort", SortingState::Run)
+            };
 
         let is_stopped = self.state == SortingState::Idle;
 
         ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("Algorithm")
-                .selected_text(&self.algorithm.to_string())
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut self.algorithm,
-                        Algorithm::Bubble,
-                        Algorithm::Bubble.to_string(),
-                    );
-                    ui.selectable_value(
-                        &mut self.algorithm,
-                        Algorithm::Selection,
-                        Algorithm::Selection.to_string(),
-                    );
-                    ui.selectable_value(
-                        &mut self.algorithm,
-                        Algorithm::Insertion,
-                        Algorithm::Insertion.to_string(),
-                    );
-                    ui.selectable_value(
-                        &mut self.algorithm,
-                        Algorithm::Merge,
-                        Algorithm::Merge.to_string(),
-                    );
-                    ui.selectable_value(
-                        &mut self.algorithm,
-                        Algorithm::Quick,
-                        Algorithm::Quick.to_string(),
-                    );
-                })
-                .response
-                .on_hover_text("Algorithm");
+            ui.add_enabled_ui(is_stopped, |ui| {
+                let before = self.algorithm;
+
+                egui::ComboBox::from_id_salt("Algorithm")
+                    .selected_text(&self.algorithm.to_string())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Bubble,
+                            Algorithm::Bubble.to_string(),
+                        );
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Selection,
+                            Algorithm::Selection.to_string(),
+                        );
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Insertion,
+                            Algorithm::Insertion.to_string(),
+                        );
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Merge,
+                            Algorithm::Merge.to_string(),
+                        );
+                        ui.selectable_value(
+                            &mut self.algorithm,
+                            Algorithm::Quick,
+                            Algorithm::Quick.to_string(),
+                        );
+                    })
+                    .response
+                    .on_hover_text("Algorithm");
+
+                if self.algorithm != before {
+                    self.input_tx
+                        .send(Input::AlgorithmChange(self.algorithm))
+                        .unwrap();
+                }
+            });
 
             if ui
                 .add_enabled(is_stopped, egui::Button::image(randomize_icon))
                 .on_hover_text("Randomize")
                 .clicked()
             {
-                fastrand::shuffle(&mut self.numbers.lock().unwrap());
+                self.input_tx.send(Input::Shuffle).unwrap();
             }
 
-            ui.add(egui::Button::image(resume_pause_icon))
-                .on_hover_text(resume_pause_tooltip);
+            if ui
+                .add(egui::Button::image(resume_pause_icon))
+                .on_hover_text(resume_pause_tooltip)
+                .clicked()
+            {
+                self.input_tx
+                    .send(Input::SortingStateChange(next_state))
+                    .unwrap();
 
-            ui.add_enabled(!is_stopped, egui::Button::image(stop_icon))
-                .on_hover_text("Stop");
+                self.state = next_state;
+            }
+
+            if ui
+                .add_enabled(!is_stopped, egui::Button::image(stop_icon))
+                .on_hover_text("Stop")
+                .clicked()
+            {
+                self.input_tx
+                    .send(Input::SortingStateChange(SortingState::Idle))
+                    .unwrap();
+
+                self.state = SortingState::Idle;
+            };
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add_enabled(is_stopped, egui::Slider::new(&mut self.count, 10..=1000))
                     .on_hover_text("Number of elements")
-                    .dragged()
+                    .changed()
                 {
                     self.input_tx.send(Input::CountChange(self.count)).unwrap();
                 }
@@ -175,26 +245,40 @@ impl AlgorithmVisualizer {
             let (response, painter) =
                 ui.allocate_painter(ui.available_size(), egui::Sense::hover());
 
+            if let Ok(data) = self.data_rx.try_recv() {
+                match data {
+                    Some((numbers, active_element)) => {
+                        self.numbers = numbers;
+                        self.active_element = active_element;
+                    }
+                    None => self.state = SortingState::Idle,
+                }
+            }
+
             let area = response.rect;
             let bar_width = area.width() / self.count as f32;
             let bar_height_per_size = area.height() / self.count as f32;
-            self.numbers
-                .lock()
-                .unwrap()
-                .iter()
-                .enumerate()
-                .for_each(|(index, number)| {
-                    let left_x = area.min.x + bar_width * index as f32;
-                    let right_x = left_x + bar_width;
-                    let bottom_y = area.max.y;
-                    let top_y = area.max.y - bar_height_per_size * *number as f32;
+            self.numbers.iter().enumerate().for_each(|(index, number)| {
+                let left_x = area.min.x + bar_width * index as f32;
+                let right_x = left_x + bar_width;
+                let bottom_y = area.max.y;
+                let top_y = area.max.y - bar_height_per_size * *number as f32;
 
-                    let bar = egui::Rect::from_two_pos(
-                        egui::pos2(left_x, bottom_y),
-                        egui::pos2(right_x, top_y),
-                    );
-                    painter.rect_filled(bar, 0., egui::Color32::from_gray(u8::MAX));
-                });
+                let bar = egui::Rect::from_two_pos(
+                    egui::pos2(left_x, bottom_y),
+                    egui::pos2(right_x, top_y),
+                );
+
+                let colour = if let Some(active_index) = self.active_element
+                    && active_index == index
+                {
+                    egui::Color32::from_rgb(u8::MAX, 0, 0)
+                } else {
+                    egui::Color32::from_gray(u8::MAX)
+                };
+
+                painter.rect_filled(bar, 0., colour);
+            });
         });
     }
 }
@@ -206,5 +290,7 @@ impl eframe::App for AlgorithmVisualizer {
             .show(ctx, |ui| self.options_panel(ui));
 
         egui::CentralPanel::default().show(ctx, |ui| self.sorting_panel(ui));
+
+        ctx.request_repaint_after(Duration::from_millis(1000 / 60 as u64));
     }
 }
