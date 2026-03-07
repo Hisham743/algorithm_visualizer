@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use algorithm_visualizer::{Algorithm, Sortable};
+use algorithm_visualizer::{Algorithm, Snapshot, Sortable};
 use eframe::egui;
 
 fn main() -> eframe::Result {
@@ -20,8 +20,8 @@ fn main() -> eframe::Result {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SortingState {
     Idle,
-    Run,
-    Pause,
+    Running,
+    Paused,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,13 +33,12 @@ enum Input {
 }
 
 struct AlgorithmVisualizer {
-    numbers: Vec<u16>,
-    active_element: Option<usize>,
     count: u16,
     state: SortingState,
     algorithm: Algorithm,
+    snapshot: Snapshot<u16>,
     input_tx: Sender<Input>,
-    data_rx: Receiver<Option<(Vec<u16>, Option<usize>)>>,
+    data_rx: Receiver<Option<Snapshot<u16>>>,
 }
 
 impl Default for AlgorithmVisualizer {
@@ -49,15 +48,18 @@ impl Default for AlgorithmVisualizer {
 
         let (input_tx, input_rx) = mpsc::channel();
         let (data_tx, data_rx) = mpsc::channel();
-
         Self::sorting_thread(numbers.clone(), input_rx, data_tx);
 
-        AlgorithmVisualizer {
+        let snapshot = Snapshot {
             numbers,
             active_element: None,
+        };
+
+        AlgorithmVisualizer {
             count: 100,
             state: SortingState::Idle,
             algorithm: Algorithm::Bubble,
+            snapshot,
             input_tx,
             data_rx,
         }
@@ -73,11 +75,11 @@ impl AlgorithmVisualizer {
     fn sorting_thread(
         mut numbers: Vec<u16>,
         input_rx: Receiver<Input>,
-        data_tx: Sender<Option<(Vec<u16>, Option<usize>)>>,
+        data_tx: Sender<Option<Snapshot<u16>>>,
     ) {
         fn algorithm_iterator(
             algorithm: Algorithm,
-        ) -> fn(&mut [u16]) -> Box<dyn Iterator<Item = (Vec<u16>, Option<usize>)> + '_> {
+        ) -> fn(&mut [u16]) -> Box<dyn Iterator<Item = Snapshot<u16>> + '_> {
             match algorithm {
                 Algorithm::Bubble => |slice| Box::new(Sortable::bubble_sort(slice)),
                 Algorithm::Selection => |slice| Box::new(Sortable::selection_sort(slice)),
@@ -89,13 +91,12 @@ impl AlgorithmVisualizer {
 
         thread::spawn(move || {
             let mut algorithm = Algorithm::Bubble;
-            let mut algorithm_steps: Option<Box<dyn Iterator<Item = (Vec<u16>, Option<usize>)>>> =
-                Some(algorithm_iterator(algorithm)(&mut numbers));
+            let mut algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
 
             let mut sorting_state = SortingState::Idle;
 
             loop {
-                if sorting_state == SortingState::Run {
+                if sorting_state == SortingState::Running {
                     if let Some(ref mut steps) = algorithm_steps {
                         let step = steps.next();
 
@@ -125,10 +126,14 @@ impl AlgorithmVisualizer {
 
                     if !matches!(
                         input,
-                        Input::SortingStateChange(SortingState::Run | SortingState::Pause)
+                        Input::SortingStateChange(SortingState::Running | SortingState::Paused)
                     ) {
                         drop(algorithm_steps);
-                        data_tx.send(Some((numbers.clone(), None))).unwrap();
+                        let snapshot = Snapshot {
+                            numbers: numbers.clone(),
+                            active_element: None,
+                        };
+                        data_tx.send(Some(snapshot)).unwrap();
                         algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
                     }
                 }
@@ -145,10 +150,10 @@ impl AlgorithmVisualizer {
         let stop_icon = egui::include_image!("./images/stop.png");
 
         let (resume_pause_icon, resume_pause_tooltip, next_state) =
-            if self.state == SortingState::Run {
-                (pause_icon, "Pause", SortingState::Pause)
+            if self.state == SortingState::Running {
+                (pause_icon, "Pause", SortingState::Paused)
             } else {
-                (resume_icon, "Sort", SortingState::Run)
+                (resume_icon, "Sort", SortingState::Running)
             };
 
         let is_stopped = self.state == SortingState::Idle;
@@ -247,10 +252,7 @@ impl AlgorithmVisualizer {
 
             if let Ok(data) = self.data_rx.try_recv() {
                 match data {
-                    Some((numbers, active_element)) => {
-                        self.numbers = numbers;
-                        self.active_element = active_element;
-                    }
+                    Some(snapshot) => self.snapshot = snapshot,
                     None => self.state = SortingState::Idle,
                 }
             }
@@ -258,27 +260,31 @@ impl AlgorithmVisualizer {
             let area = response.rect;
             let bar_width = area.width() / self.count as f32;
             let bar_height_per_size = area.height() / self.count as f32;
-            self.numbers.iter().enumerate().for_each(|(index, number)| {
-                let left_x = area.min.x + bar_width * index as f32;
-                let right_x = left_x + bar_width;
-                let bottom_y = area.max.y;
-                let top_y = area.max.y - bar_height_per_size * *number as f32;
+            self.snapshot
+                .numbers
+                .iter()
+                .enumerate()
+                .for_each(|(index, number)| {
+                    let left_x = area.min.x + bar_width * index as f32;
+                    let right_x = left_x + bar_width;
+                    let bottom_y = area.max.y;
+                    let top_y = area.max.y - bar_height_per_size * *number as f32;
 
-                let bar = egui::Rect::from_two_pos(
-                    egui::pos2(left_x, bottom_y),
-                    egui::pos2(right_x, top_y),
-                );
+                    let bar = egui::Rect::from_two_pos(
+                        egui::pos2(left_x, bottom_y),
+                        egui::pos2(right_x, top_y),
+                    );
 
-                let colour = if let Some(active_index) = self.active_element
-                    && active_index == index
-                {
-                    egui::Color32::from_rgb(u8::MAX, 0, 0)
-                } else {
-                    egui::Color32::from_gray(u8::MAX)
-                };
+                    let colour = if let Some(active_index) = self.snapshot.active_element
+                        && active_index == index
+                    {
+                        egui::Color32::from_rgb(u8::MAX, 0, 0)
+                    } else {
+                        egui::Color32::from_gray(u8::MAX)
+                    };
 
-                painter.rect_filled(bar, 0., colour);
-            });
+                    painter.rect_filled(bar, 0., colour);
+                });
         });
     }
 }
