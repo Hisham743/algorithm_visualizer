@@ -35,6 +35,8 @@ jobs:
         run: cargo install --locked trunk
       - name: Build project
         run: trunk build --release --verbose --public-url /${{ github.event.repository.name }}
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
@@ -55,8 +57,6 @@ jobs:
     # Specify runner + deployment step
     runs-on: ubuntu-latest
     steps:
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v3
