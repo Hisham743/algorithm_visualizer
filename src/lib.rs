@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use algorithms::{Algorithm, Snapshot, Sortable};
+use algorithms::{Algorithm, Snapshot};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SortingState {
@@ -71,21 +71,9 @@ impl AlgorithmVisualizer {
         input_rx: Receiver<Input>,
         data_tx: Sender<Option<Snapshot<u16>>>,
     ) {
-        fn algorithm_iterator(
-            algorithm: Algorithm,
-        ) -> fn(&mut [u16]) -> Box<dyn Iterator<Item = Snapshot<u16>> + '_> {
-            match algorithm {
-                Algorithm::Bubble => |slice| Box::new(Sortable::bubble_sort(slice)),
-                Algorithm::Selection => |slice| Box::new(Sortable::selection_sort(slice)),
-                Algorithm::Insertion => |slice| Box::new(Sortable::insertion_sort(slice)),
-                Algorithm::Merge => |slice| Box::new(Sortable::merge_sort(slice)),
-                Algorithm::Quick => |slice| Box::new(Sortable::quick_sort(slice)),
-            }
-        }
-
         thread::spawn(move || {
             let mut algorithm = Algorithm::Bubble;
-            let mut algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
+            let mut algorithm_steps = Some(algorithm.steps()(&mut numbers));
 
             let mut sorting_state = SortingState::Idle;
 
@@ -97,7 +85,7 @@ impl AlgorithmVisualizer {
                         if step.is_none() {
                             sorting_state = SortingState::Idle;
                             drop(algorithm_steps);
-                            algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
+                            algorithm_steps = Some(algorithm.steps()(&mut numbers));
                         }
 
                         data_tx.send(step).unwrap();
@@ -128,7 +116,7 @@ impl AlgorithmVisualizer {
                             active_element: None,
                         };
                         data_tx.send(Some(snapshot)).unwrap();
-                        algorithm_steps = Some(algorithm_iterator(algorithm)(&mut numbers));
+                        algorithm_steps = Some(algorithm.steps()(&mut numbers));
                     }
                 }
 

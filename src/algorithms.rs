@@ -15,13 +15,28 @@ impl Display for Algorithm {
     }
 }
 
+impl Algorithm {
+    pub fn steps<T>(&self) -> fn(&mut [T]) -> Box<dyn Iterator<Item = Snapshot<T>> + '_>
+    where
+        T: Ord + Clone,
+    {
+        match self {
+            Algorithm::Bubble => |numbers| Box::new(numbers.bubble_sort()),
+            Algorithm::Selection => |numbers| Box::new(numbers.selection_sort()),
+            Algorithm::Insertion => |numbers| Box::new(numbers.insertion_sort()),
+            Algorithm::Merge => |numbers| Box::new(numbers.merge_sort()),
+            Algorithm::Quick => |numbers| Box::new(numbers.quick_sort()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Snapshot<T: Ord + Clone> {
     pub numbers: Vec<T>,
     pub active_element: Option<usize>,
 }
 
-pub trait Sortable<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
+trait Sortable<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
     fn bubble_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
         gen move {
             let length = self.as_ref().len();
