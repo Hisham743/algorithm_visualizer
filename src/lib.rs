@@ -68,7 +68,7 @@ impl AlgorithmVisualizer {
                 let before = self.algorithm;
 
                 egui::ComboBox::from_id_salt("Algorithm")
-                    .selected_text(&self.algorithm.to_string())
+                    .selected_text(self.algorithm.to_string())
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut self.algorithm,
@@ -200,6 +200,6 @@ impl eframe::App for AlgorithmVisualizer {
 
         egui::CentralPanel::default().show(ctx, |ui| self.sorting_panel(ui));
 
-        ctx.request_repaint_after(Duration::from_millis(1000 / 60 as u64));
+        ctx.request_repaint_after(Duration::from_millis(1000 / 60_u64));
     }
 }
