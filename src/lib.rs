@@ -127,7 +127,8 @@ impl AlgorithmVisualizer {
                 .clicked()
             {
                 self.state = SortingState::Idle;
-                self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
+                self.steps = self.algorithm.steps()(self.snapshot.numbers.clone());
+                self.snapshot.active_element = None;
             };
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
