@@ -3,11 +3,7 @@
 mod algorithms;
 
 use eframe::egui;
-use std::{
-    sync::mpsc::{self, Receiver, Sender},
-    thread,
-    time::Duration,
-};
+use std::time::Duration;
 
 use algorithms::{Algorithm, Snapshot};
 
@@ -18,21 +14,12 @@ enum SortingState {
     Paused,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Input {
-    Shuffle,
-    CountChange(u16),
-    SortingStateChange(SortingState),
-    AlgorithmChange(Algorithm),
-}
-
 pub struct AlgorithmVisualizer {
     count: u16,
     state: SortingState,
     algorithm: Algorithm,
     snapshot: Snapshot<u16>,
-    input_tx: Sender<Input>,
-    data_rx: Receiver<Option<Snapshot<u16>>>,
+    steps: Box<dyn Iterator<Item = Snapshot<u16>>>,
 }
 
 impl Default for AlgorithmVisualizer {
@@ -40,12 +27,8 @@ impl Default for AlgorithmVisualizer {
         let mut numbers = (1..=100).collect::<Vec<u16>>();
         fastrand::shuffle(&mut numbers);
 
-        let (input_tx, input_rx) = mpsc::channel();
-        let (data_tx, data_rx) = mpsc::channel();
-        Self::sorting_thread(numbers.clone(), input_rx, data_tx);
-
         let snapshot = Snapshot {
-            numbers,
+            numbers: numbers.clone(),
             active_element: None,
         };
 
@@ -54,8 +37,7 @@ impl Default for AlgorithmVisualizer {
             state: SortingState::Idle,
             algorithm: Algorithm::Bubble,
             snapshot,
-            input_tx,
-            data_rx,
+            steps: Box::new(Algorithm::Bubble.steps()(numbers)),
         }
     }
 }
@@ -64,65 +46,6 @@ impl AlgorithmVisualizer {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         Self::default()
-    }
-
-    fn sorting_thread(
-        mut numbers: Vec<u16>,
-        input_rx: Receiver<Input>,
-        data_tx: Sender<Option<Snapshot<u16>>>,
-    ) {
-        thread::spawn(move || {
-            let mut algorithm = Algorithm::Bubble;
-            let mut algorithm_steps = Some(algorithm.steps()(&mut numbers));
-
-            let mut sorting_state = SortingState::Idle;
-
-            loop {
-                if sorting_state == SortingState::Running {
-                    if let Some(ref mut steps) = algorithm_steps {
-                        let step = steps.next();
-
-                        if step.is_none() {
-                            sorting_state = SortingState::Idle;
-                            drop(algorithm_steps);
-                            algorithm_steps = Some(algorithm.steps()(&mut numbers));
-                        }
-
-                        data_tx.send(step).unwrap();
-                    }
-                }
-
-                if let Ok(input) = input_rx.try_recv() {
-                    match input {
-                        Input::Shuffle => {
-                            algorithm_steps = None;
-                            fastrand::shuffle(&mut numbers);
-                        }
-                        Input::CountChange(count) => {
-                            algorithm_steps = None;
-                            numbers = (1..=count).collect();
-                        }
-                        Input::AlgorithmChange(alg) => algorithm = alg,
-                        Input::SortingStateChange(state) => sorting_state = state,
-                    }
-
-                    if !matches!(
-                        input,
-                        Input::SortingStateChange(SortingState::Running | SortingState::Paused)
-                    ) {
-                        drop(algorithm_steps);
-                        let snapshot = Snapshot {
-                            numbers: numbers.clone(),
-                            active_element: None,
-                        };
-                        data_tx.send(Some(snapshot)).unwrap();
-                        algorithm_steps = Some(algorithm.steps()(&mut numbers));
-                    }
-                }
-
-                thread::sleep(Duration::from_millis(1000 / 60 as u64));
-            }
-        });
     }
 
     fn options_panel(&mut self, ui: &mut egui::Ui) {
@@ -177,9 +100,7 @@ impl AlgorithmVisualizer {
                     .on_hover_text("Algorithm");
 
                 if self.algorithm != before {
-                    self.input_tx
-                        .send(Input::AlgorithmChange(self.algorithm))
-                        .unwrap();
+                    self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
                 }
             });
 
@@ -188,7 +109,8 @@ impl AlgorithmVisualizer {
                 .on_hover_text("Randomize")
                 .clicked()
             {
-                self.input_tx.send(Input::Shuffle).unwrap();
+                fastrand::shuffle(&mut self.snapshot.numbers);
+                self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
             }
 
             if ui
@@ -196,10 +118,6 @@ impl AlgorithmVisualizer {
                 .on_hover_text(resume_pause_tooltip)
                 .clicked()
             {
-                self.input_tx
-                    .send(Input::SortingStateChange(next_state))
-                    .unwrap();
-
                 self.state = next_state;
             }
 
@@ -208,11 +126,8 @@ impl AlgorithmVisualizer {
                 .on_hover_text("Stop")
                 .clicked()
             {
-                self.input_tx
-                    .send(Input::SortingStateChange(SortingState::Idle))
-                    .unwrap();
-
                 self.state = SortingState::Idle;
+                self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
             };
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -221,7 +136,8 @@ impl AlgorithmVisualizer {
                     .on_hover_text("Number of elements")
                     .changed()
                 {
-                    self.input_tx.send(Input::CountChange(self.count)).unwrap();
+                    self.snapshot.numbers = (1..=self.count).collect();
+                    self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
                 }
             });
         });
@@ -232,10 +148,15 @@ impl AlgorithmVisualizer {
             let (response, painter) =
                 ui.allocate_painter(ui.available_size(), egui::Sense::hover());
 
-            if let Ok(data) = self.data_rx.try_recv() {
-                match data {
+            if self.state == SortingState::Running {
+                let step = self.steps.next();
+
+                match step {
                     Some(snapshot) => self.snapshot = snapshot,
-                    None => self.state = SortingState::Idle,
+                    None => {
+                        self.state = SortingState::Idle;
+                        self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
+                    }
                 }
             }
 
