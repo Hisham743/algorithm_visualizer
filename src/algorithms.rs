@@ -243,9 +243,11 @@ trait Sortable<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
                 yield snapshot;
             }
 
-            for snapshot in Box::new(right.quick_sort()) {
+            let first_in_right = right[0].clone();
+            for snapshot in Box::new(right[1..].quick_sort()) {
                 let mut full = Vec::with_capacity(i + snapshot.numbers.len() + 1);
                 full.extend_from_slice(left);
+                full.push(first_in_right.clone());
                 full.extend_from_slice(&snapshot.numbers);
 
                 let active_element = snapshot.active_element.map(|index| i + index + 1);
@@ -254,6 +256,11 @@ trait Sortable<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
                     active_element,
                 }
             }
+
+            yield Snapshot {
+                numbers: self.as_ref().to_vec(),
+                active_element: None,
+            };
         }
     }
 }
