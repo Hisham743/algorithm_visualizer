@@ -16,16 +16,16 @@ impl Display for Algorithm {
 }
 
 impl Algorithm {
-    pub fn steps<T>(&self) -> fn(&mut [T]) -> Box<dyn Iterator<Item = Snapshot<T>> + '_>
+    pub fn steps<T>(&self) -> fn(Vec<T>) -> Box<dyn Iterator<Item = Snapshot<T>>>
     where
-        T: Ord + Clone,
+        T: Ord + Clone + 'static,
     {
         match self {
-            Algorithm::Bubble => |numbers| Box::new(numbers.bubble_sort()),
-            Algorithm::Selection => |numbers| Box::new(numbers.selection_sort()),
-            Algorithm::Insertion => |numbers| Box::new(numbers.insertion_sort()),
-            Algorithm::Merge => |numbers| Box::new(numbers.merge_sort()),
-            Algorithm::Quick => |numbers| Box::new(numbers.quick_sort()),
+            Algorithm::Bubble => |numbers| Box::new(bubble_sort(numbers)),
+            Algorithm::Selection => |numbers| Box::new(selection_sort(numbers)),
+            Algorithm::Insertion => |numbers| Box::new(insertion_sort(numbers)),
+            Algorithm::Merge => |numbers| Box::new(merge_sort(numbers)),
+            Algorithm::Quick => |numbers| Box::new(quick_sort(numbers)),
         }
     }
 }
@@ -36,236 +36,269 @@ pub struct Snapshot<T: Ord + Clone> {
     pub active_element: Option<usize>,
 }
 
-trait Sortable<T: Ord + Clone>: AsRef<[T]> + AsMut<[T]> {
-    fn bubble_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
+fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Snapshot<T>> {
+    gen move {
+        let length = numbers.len();
+        if length < 2 {
+            yield Snapshot {
+                numbers,
+                active_element: None,
+            };
+            return;
+        }
+
+        for i in 0..(length - 1) {
+            let mut swapped = false;
+
+            for j in 0..(length - i - 1) {
+                yield Snapshot {
+                    numbers: numbers.clone(),
+                    active_element: Some(j),
+                };
+
+                if numbers[j] > numbers[j + 1] {
+                    numbers.swap(j, j + 1);
+                    swapped = true;
+                }
             }
 
-            for i in 0..(length - 1) {
-                let mut swapped = false;
+            if !swapped {
+                break;
+            }
+        }
 
-                for j in 0..(length - i - 1) {
-                    yield Snapshot {
-                        numbers: self.as_ref().to_vec(),
-                        active_element: Some(j),
-                    };
+        yield Snapshot {
+            numbers,
+            active_element: None,
+        };
+    }
+}
 
-                    if self.as_ref()[j] > self.as_ref()[j + 1] {
-                        self.as_mut().swap(j, j + 1);
-                        swapped = true;
-                    }
+fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Snapshot<T>> {
+    gen move {
+        let length = numbers.len();
+        if length < 2 {
+            yield Snapshot {
+                numbers,
+                active_element: None,
+            };
+            return;
+        }
+
+        for i in 0..(length - 1) {
+            let mut min_index = i;
+
+            for j in (i + 1)..length {
+                yield Snapshot {
+                    numbers: numbers.clone(),
+                    active_element: Some(j),
+                };
+
+                if numbers[j] < numbers[min_index] {
+                    min_index = j;
                 }
+            }
 
-                if !swapped {
+            numbers.swap(i, min_index);
+        }
+
+        yield Snapshot {
+            numbers,
+            active_element: None,
+        };
+    }
+}
+
+fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Snapshot<T>> {
+    gen move {
+        let length = numbers.len();
+        if length < 2 {
+            yield Snapshot {
+                numbers,
+                active_element: None,
+            };
+            return;
+        }
+
+        for i in 1..length {
+            let mut insert_index = i;
+            let current_value = numbers[i].clone();
+
+            for j in (0..i).rev() {
+                yield Snapshot {
+                    numbers: numbers.clone(),
+                    active_element: Some(j),
+                };
+
+                if numbers[j] > current_value {
+                    numbers[j + 1] = numbers[j].clone();
+                    insert_index = j;
+                } else {
                     break;
                 }
             }
 
-            yield Snapshot {
-                numbers: self.as_ref().to_vec(),
-                active_element: None,
-            };
+            numbers[insert_index] = current_value;
         }
-    }
 
-    fn selection_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
-            }
-
-            for i in 0..(length - 1) {
-                let mut min_index = i;
-
-                for j in (i + 1)..length {
-                    yield Snapshot {
-                        numbers: self.as_ref().to_vec(),
-                        active_element: Some(j),
-                    };
-
-                    if self.as_ref()[j] < self.as_ref()[min_index] {
-                        min_index = j;
-                    }
-                }
-
-                self.as_mut().swap(i, min_index);
-            }
-
-            yield Snapshot {
-                numbers: self.as_ref().to_vec(),
-                active_element: None,
-            };
-        }
-    }
-
-    fn insertion_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
-            }
-
-            for i in 1..length {
-                let mut insert_index = i;
-                let current_value = self.as_ref()[i].clone();
-
-                for j in (0..i).rev() {
-                    yield Snapshot {
-                        numbers: self.as_ref().to_vec(),
-                        active_element: Some(j),
-                    };
-
-                    if self.as_ref()[j] > current_value {
-                        self.as_mut()[j + 1] = self.as_ref()[j].clone();
-                        insert_index = j;
-                    } else {
-                        break;
-                    }
-                }
-
-                self.as_mut()[insert_index] = current_value;
-            }
-
-            yield Snapshot {
-                numbers: self.as_ref().to_vec(),
-                active_element: None,
-            };
-        }
-    }
-
-    fn merge_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
-            }
-
-            let middle = length / 2;
-            let mut buffer = Box::new(self.as_ref().to_vec());
-            let (left_half, right_half) = buffer.split_at_mut(middle);
-
-            for mut snapshot in Box::new(left_half.merge_sort()) {
-                snapshot.numbers.extend_from_slice(right_half);
-                yield snapshot;
-            }
-
-            for snapshot in Box::new(right_half.merge_sort()) {
-                let mut full = Vec::with_capacity(middle + snapshot.numbers.len());
-                full.extend_from_slice(left_half);
-                full.extend_from_slice(&snapshot.numbers);
-
-                let active_element = snapshot.active_element.map(|index| middle + index);
-                yield Snapshot {
-                    numbers: full,
-                    active_element,
-                }
-            }
-
-            let (mut i, mut j, mut k) = (0, 0, 0);
-
-            while i < left_half.len() && j < right_half.len() {
-                yield Snapshot {
-                    numbers: self.as_ref().to_vec(),
-                    active_element: Some(k),
-                };
-
-                if left_half[i] < right_half[j] {
-                    self.as_mut()[k] = left_half[i].clone();
-                    i += 1;
-                } else {
-                    self.as_mut()[k] = right_half[j].clone();
-                    j += 1;
-                }
-
-                k += 1;
-            }
-
-            while i < left_half.len() {
-                yield Snapshot {
-                    numbers: self.as_ref().to_vec(),
-                    active_element: Some(k),
-                };
-                self.as_mut()[k] = left_half[i].clone();
-                i += 1;
-                k += 1;
-            }
-
-            while j < right_half.len() {
-                yield Snapshot {
-                    numbers: self.as_ref().to_vec(),
-                    active_element: Some(k),
-                };
-
-                self.as_mut()[k] = right_half[j].clone();
-                j += 1;
-                k += 1;
-            }
-
-            yield Snapshot {
-                numbers: self.as_ref().to_vec(),
-                active_element: None,
-            };
-        }
-    }
-
-    fn quick_sort(&mut self) -> impl Iterator<Item = Snapshot<T>> {
-        gen move {
-            let length = self.as_ref().len();
-            if length < 2 {
-                return;
-            }
-
-            let pivot = self.as_ref()[length - 1].clone();
-            let mut i = 0;
-
-            for j in 0..(length - 1) {
-                yield Snapshot {
-                    numbers: self.as_ref().to_vec(),
-                    active_element: Some(j),
-                };
-
-                if self.as_ref()[j] <= pivot {
-                    self.as_mut().swap(i, j);
-                    i += 1;
-                }
-            }
-
-            self.as_mut().swap(i, length - 1);
-
-            let (left, right) = self.as_mut().split_at_mut(i);
-
-            for mut snapshot in Box::new(left.quick_sort()) {
-                snapshot.numbers.extend_from_slice(right);
-                yield snapshot;
-            }
-
-            let first_in_right = right[0].clone();
-            for snapshot in Box::new(right[1..].quick_sort()) {
-                let mut full = Vec::with_capacity(i + snapshot.numbers.len() + 1);
-                full.extend_from_slice(left);
-                full.push(first_in_right.clone());
-                full.extend_from_slice(&snapshot.numbers);
-
-                let active_element = snapshot.active_element.map(|index| i + index + 1);
-                yield Snapshot {
-                    numbers: full,
-                    active_element,
-                }
-            }
-
-            yield Snapshot {
-                numbers: self.as_ref().to_vec(),
-                active_element: None,
-            };
-        }
+        yield Snapshot {
+            numbers,
+            active_element: None,
+        };
     }
 }
 
-impl<T: Ord + Clone> Sortable<T> for [T] {}
+fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Snapshot<T>> {
+    gen move {
+        let length = numbers.len();
+        if length < 2 {
+            yield Snapshot {
+                numbers,
+                active_element: None,
+            };
+            return;
+        }
+
+        let middle = length / 2;
+        let left_half = numbers[..middle].to_vec();
+        let right_half = numbers[middle..].to_vec();
+        let right_half_len = right_half.len();
+
+        let mut sorted_left_half = Vec::new();
+        for mut snapshot in Box::new(merge_sort(left_half)) {
+            sorted_left_half = snapshot.numbers.clone();
+            snapshot.numbers.extend_from_slice(&right_half);
+            yield snapshot;
+        }
+
+        let mut sorted_right_half = Vec::new();
+        for snapshot in Box::new(merge_sort(right_half)) {
+            sorted_right_half = snapshot.numbers.clone();
+
+            let mut full = Vec::with_capacity(middle + right_half_len);
+            full.extend_from_slice(&sorted_left_half);
+            full.extend_from_slice(&snapshot.numbers);
+
+            let active_element = snapshot.active_element.map(|index| middle + index);
+            yield Snapshot {
+                numbers: full,
+                active_element,
+            }
+        }
+
+        let (mut i, mut j, mut k) = (0, 0, 0);
+
+        while i < sorted_left_half.len() && j < sorted_right_half.len() {
+            yield Snapshot {
+                numbers: numbers.clone(),
+                active_element: Some(k),
+            };
+
+            if sorted_left_half[i] < sorted_right_half[j] {
+                numbers[k] = sorted_left_half[i].clone();
+                i += 1;
+            } else {
+                numbers[k] = sorted_right_half[j].clone();
+                j += 1;
+            }
+
+            k += 1;
+        }
+
+        while i < sorted_left_half.len() {
+            yield Snapshot {
+                numbers: numbers.clone(),
+                active_element: Some(k),
+            };
+            numbers[k] = sorted_left_half[i].clone();
+            i += 1;
+            k += 1;
+        }
+
+        while j < sorted_right_half.len() {
+            yield Snapshot {
+                numbers: numbers.clone(),
+                active_element: Some(k),
+            };
+
+            numbers[k] = sorted_right_half[j].clone();
+            j += 1;
+            k += 1;
+        }
+
+        yield Snapshot {
+            numbers,
+            active_element: None,
+        };
+    }
+}
+
+fn quick_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Snapshot<T>> {
+    gen move {
+        let length = numbers.len();
+        if length < 2 {
+            yield Snapshot {
+                numbers,
+                active_element: None,
+            };
+            return;
+        }
+
+        let pivot = numbers[length - 1].clone();
+        let mut i = 0;
+
+        for j in 0..(length - 1) {
+            yield Snapshot {
+                numbers: numbers.clone(),
+                active_element: Some(j),
+            };
+
+            if numbers[j] <= pivot {
+                numbers.swap(i, j);
+                i += 1;
+            }
+        }
+
+        numbers.swap(i, length - 1);
+
+        let left = numbers[..i].to_vec();
+        let right = numbers[i + 1..].to_vec();
+        let pivot = numbers[i].clone();
+
+        let mut sorted_left = Vec::new();
+        for mut snapshot in Box::new(quick_sort(left)) {
+            sorted_left = snapshot.numbers.clone();
+            snapshot.numbers.push(pivot.clone());
+            snapshot.numbers.extend_from_slice(&right);
+            yield snapshot;
+        }
+
+        let mut sorted_right = Vec::new();
+        for snapshot in Box::new(quick_sort(right)) {
+            sorted_right = snapshot.numbers.clone();
+
+            let mut full = Vec::with_capacity(i + snapshot.numbers.len() + 1);
+            full.extend_from_slice(&sorted_left);
+            full.push(pivot.clone());
+            full.extend_from_slice(&snapshot.numbers);
+
+            let active_element = snapshot.active_element.map(|index| i + index + 1);
+            yield Snapshot {
+                numbers: full,
+                active_element,
+            }
+        }
+
+        numbers = sorted_left;
+        numbers.push(pivot);
+        numbers.extend_from_slice(&sorted_right);
+
+        yield Snapshot {
+            numbers,
+            active_element: None,
+        };
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -273,35 +306,35 @@ mod tests {
     use std::iter;
 
     macro_rules! test_algorithm {
-        ($algorithm:ident) => {
+        ($algorithm:ident, $test_name:ident) => {
             #[test]
-            fn $algorithm() {
-                let mut numbers = Vec::new();
+            fn $test_name() {
+                let sorted_numbers =
+                    |numbers: Vec<i32>| $algorithm(numbers).last().unwrap().numbers;
 
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "empty case");
+                let empty = Vec::<i32>::new();
+                assert_eq!(sorted_numbers(empty), Vec::new(), "empty case");
 
-                numbers.push(fastrand::i32(..));
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "single case");
+                let single = vec![fastrand::i32(..)];
+                let clone = single.clone();
+                assert_eq!(sorted_numbers(single), clone, "single case");
 
-                numbers = iter::repeat_with(|| fastrand::i32(..)).take(100).collect();
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "100 case");
+                let numbers = iter::repeat_with(|| fastrand::i32(..)).take(100).collect();
+                let sorted = sorted_numbers(numbers);
 
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "sorted case");
+                let mut reverse = sorted.clone();
+                reverse.reverse();
 
-                numbers.reverse();
-                numbers.$algorithm().for_each(drop);
-                assert!(numbers.is_sorted(), "reverse case");
+                assert!(sorted.is_sorted(), "100 case");
+                assert!(sorted_numbers(sorted).is_sorted(), "sorted case");
+                assert!(sorted_numbers(reverse).is_sorted(), "reverse case");
             }
         };
     }
 
-    test_algorithm!(bubble_sort);
-    test_algorithm!(selection_sort);
-    test_algorithm!(insertion_sort);
-    test_algorithm!(merge_sort);
-    test_algorithm!(quick_sort);
+    test_algorithm!(bubble_sort, bubble_sort_test);
+    test_algorithm!(selection_sort, selection_sort_test);
+    test_algorithm!(insertion_sort, insertion_sort_test);
+    test_algorithm!(merge_sort, merge_sort_test);
+    test_algorithm!(quick_sort, quick_sort_test);
 }
