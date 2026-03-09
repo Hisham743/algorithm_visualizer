@@ -139,26 +139,69 @@ fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
     operations
 }
 
-fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+fn merge_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
     if length < 2 {
         return operations;
+    }
+
+    let middle = length / 2;
+    let mut buffer = numbers.to_vec();
+    let (left_half, right_half) = buffer.split_at_mut(middle);
+
+    operations.extend(merge_sort_inner(left_half));
+
+    let mut right_operations = merge_sort_inner(right_half);
+    for operation in &mut right_operations {
+        operation.shift_index(middle);
+    }
+    operations.extend(right_operations);
+
+    let (mut i, mut j, mut k) = (0, 0, 0);
+    let left_half_len = left_half.len();
+    let right_half_len = right_half.len();
+
+    while i < left_half_len && j < right_half_len {
+        operations.push(Operation::CompareToValue(i));
+
+        if left_half[i] < right_half[j] {
+            numbers[k] = left_half[i].clone();
+            operations.push(Operation::WriteValue(k, left_half[i].clone()));
+            i += 1;
+        } else {
+            numbers[k] = right_half[j].clone();
+            operations.push(Operation::WriteValue(k, right_half[j].clone()));
+            j += 1;
+        }
+
+        k += 1;
+    }
+
+    while i < left_half_len {
+        numbers[k] = left_half[i].clone();
+        operations.push(Operation::WriteValue(k, left_half[i].clone()));
+        i += 1;
+        k += 1;
+    }
+
+    while j < right_half_len {
+        numbers[k] = right_half[j].clone();
+        operations.push(Operation::WriteValue(k, right_half[j].clone()));
+        j += 1;
+        k += 1;
     }
 
     operations
 }
 
+fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+    merge_sort_inner(&mut numbers)
+}
+
 fn quick_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
-    let mut operations = Vec::new();
-
-    let length = numbers.len();
-    if length < 2 {
-        return operations;
-    }
-
-    operations
+    unimplemented!()
 }
 
 #[cfg(test)]
