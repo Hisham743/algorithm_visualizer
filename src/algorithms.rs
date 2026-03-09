@@ -66,7 +66,27 @@ fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Oper
 }
 
 fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
-    gen move {}
+    gen move {
+        let length = numbers.len();
+        if length < 2 {
+            return;
+        }
+
+        for i in 0..(length - 1) {
+            let mut min_index = i;
+
+            for j in (i + 1)..length {
+                yield Operation::Compare(j, min_index);
+
+                if numbers[j] < numbers[min_index] {
+                    min_index = j;
+                }
+            }
+
+            numbers.swap(i, min_index);
+            yield Operation::Swap(i, min_index);
+        }
+    }
 }
 
 fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
