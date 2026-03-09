@@ -16,16 +16,16 @@ impl Display for Algorithm {
 }
 
 impl Algorithm {
-    pub fn operations<T>(&self) -> fn(Vec<T>) -> Box<dyn Iterator<Item = Operation<T>>>
+    pub fn operations<T>(&self) -> fn(Vec<T>) -> Vec<Operation<T>>
     where
         T: Ord + Clone + 'static,
     {
         match self {
-            Algorithm::Bubble => |numbers| Box::new(bubble_sort(numbers)),
-            Algorithm::Selection => |numbers| Box::new(selection_sort(numbers)),
-            Algorithm::Insertion => |numbers| Box::new(insertion_sort(numbers)),
-            Algorithm::Merge => |numbers| Box::new(merge_sort(numbers)),
-            Algorithm::Quick => |numbers| Box::new(quick_sort(numbers)),
+            Self::Bubble => |numbers| bubble_sort(numbers),
+            Self::Selection => |numbers| selection_sort(numbers),
+            Self::Insertion => |numbers| insertion_sort(numbers),
+            Self::Merge => |numbers| merge_sort(numbers),
+            Self::Quick => |numbers| quick_sort(numbers),
         }
     }
 }
@@ -39,92 +39,126 @@ pub enum Operation<T: Ord + Clone> {
     Swap(usize, usize),
 }
 
-fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
-    gen move {
-        let length = numbers.len();
-        if length < 2 {
-            return;
+impl<T: Ord + Copy> Copy for Operation<T> {}
+
+impl<T: Ord + Clone> Operation<T> {
+    fn shift_index(&mut self, shift: usize) {
+        *self = match self {
+            Self::Compare(i, j) => Self::Compare(*i + shift, *j + shift),
+            Self::CompareToValue(index) => Self::CompareToValue(*index + shift),
+            Self::Write(i, j) => Self::Write(*i + shift, *j + shift),
+            Self::WriteValue(index, value) => Self::WriteValue(*index + shift, value.clone()),
+            Self::Swap(i, j) => Self::Swap(*i + shift, *j + shift),
+        };
+    }
+}
+
+fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations;
+    }
+
+    for i in 0..(length - 1) {
+        let mut swapped = false;
+
+        for j in 0..(length - i - 1) {
+            operations.push(Operation::Compare(j, j + 1));
+
+            if numbers[j] > numbers[j + 1] {
+                numbers.swap(j, j + 1);
+                operations.push(Operation::Swap(j, j + 1));
+                swapped = true;
+            }
         }
 
-        for i in 0..(length - 1) {
-            let mut swapped = false;
+        if !swapped {
+            break;
+        }
+    }
 
-            for j in 0..(length - i - 1) {
-                yield Operation::Compare(j, j + 1);
+    operations
+}
 
-                if numbers[j] > numbers[j + 1] {
-                    numbers.swap(j, j + 1);
-                    yield Operation::Swap(j, j + 1);
-                    swapped = true;
-                }
+fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations;
+    }
+
+    for i in 0..(length - 1) {
+        let mut min_index = i;
+
+        for j in (i + 1)..length {
+            operations.push(Operation::Compare(j, min_index));
+
+            if numbers[j] < numbers[min_index] {
+                min_index = j;
             }
+        }
 
-            if !swapped {
+        numbers.swap(i, min_index);
+        operations.push(Operation::Swap(i, min_index));
+    }
+
+    operations
+}
+
+fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations;
+    }
+
+    for i in 1..length {
+        let mut insert_index = i;
+        let current_value = numbers[i].clone();
+
+        for j in (0..i).rev() {
+            operations.push(Operation::CompareToValue(j));
+
+            if numbers[j] > current_value {
+                numbers[j + 1] = numbers[j].clone();
+                operations.push(Operation::Write(j + 1, j));
+                insert_index = j;
+            } else {
                 break;
             }
         }
+
+        numbers[insert_index] = current_value.clone();
+        operations.push(Operation::WriteValue(insert_index, current_value))
     }
+
+    operations
 }
 
-fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
-    gen move {
-        let length = numbers.len();
-        if length < 2 {
-            return;
-        }
+fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+    let mut operations = Vec::new();
 
-        for i in 0..(length - 1) {
-            let mut min_index = i;
-
-            for j in (i + 1)..length {
-                yield Operation::Compare(j, min_index);
-
-                if numbers[j] < numbers[min_index] {
-                    min_index = j;
-                }
-            }
-
-            numbers.swap(i, min_index);
-            yield Operation::Swap(i, min_index);
-        }
+    let length = numbers.len();
+    if length < 2 {
+        return operations;
     }
+
+    operations
 }
 
-fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
-    gen move {
-        let length = numbers.len();
-        if length < 2 {
-            return;
-        }
+fn quick_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+    let mut operations = Vec::new();
 
-        for i in 1..length {
-            let mut insert_index = i;
-            let current_value = numbers[i].clone();
-
-            for j in (0..i).rev() {
-                yield Operation::CompareToValue(j);
-
-                if numbers[j] > current_value {
-                    numbers[j + 1] = numbers[j].clone();
-                    yield Operation::Write(j + 1, j);
-                    insert_index = j;
-                } else {
-                    break;
-                }
-            }
-
-            numbers[insert_index] = current_value.clone();
-            yield Operation::WriteValue(insert_index, current_value)
-        }
+    let length = numbers.len();
+    if length < 2 {
+        return operations;
     }
-}
 
-fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
-    gen move {}
-}
-
-fn quick_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
-    gen move {}
+    operations
 }
 
 #[cfg(test)]
@@ -151,7 +185,8 @@ mod tests {
 
                     let numbers_clone = numbers.clone();
                     $algorithm.operations()(numbers_clone)
-                        .for_each(|operation| apply_operation(&mut numbers, operation));
+                        .iter()
+                        .for_each(|operation| apply_operation(&mut numbers, *operation));
 
                     numbers == sorted
                 };
