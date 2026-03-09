@@ -33,8 +33,9 @@ impl Algorithm {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Operation<T: Ord + Clone> {
     Compare(usize, usize),
-    CompareValue(usize, T),
-    Write(usize, T),
+    CompareToValue(usize),
+    Write(usize, usize),
+    WriteValue(usize, T),
     Swap(usize, usize),
 }
 
@@ -90,7 +91,32 @@ fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = O
 }
 
 fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
-    gen move {}
+    gen move {
+        let length = numbers.len();
+        if length < 2 {
+            return;
+        }
+
+        for i in 1..length {
+            let mut insert_index = i;
+            let current_value = numbers[i].clone();
+
+            for j in (0..i).rev() {
+                yield Operation::CompareToValue(j);
+
+                if numbers[j] > current_value {
+                    numbers[j + 1] = numbers[j].clone();
+                    yield Operation::Write(j + 1, j);
+                    insert_index = j;
+                } else {
+                    break;
+                }
+            }
+
+            numbers[insert_index] = current_value.clone();
+            yield Operation::WriteValue(insert_index, current_value)
+        }
+    }
 }
 
 fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
@@ -108,7 +134,8 @@ mod tests {
 
     fn apply_operation(numbers: &mut [i32], operation: Operation<i32>) {
         match operation {
-            Operation::Write(index, value) => numbers[index] = value,
+            Operation::Write(i, j) => numbers[i] = numbers[j],
+            Operation::WriteValue(index, value) => numbers[index] = value,
             Operation::Swap(i, j) => numbers.swap(i, j),
             _ => {}
         }
