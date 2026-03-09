@@ -39,7 +39,30 @@ pub enum Operation<T: Ord + Clone> {
 }
 
 fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
-    gen move {}
+    gen move {
+        let length = numbers.len();
+        if length < 2 {
+            return;
+        }
+
+        for i in 0..(length - 1) {
+            let mut swapped = false;
+
+            for j in 0..(length - i - 1) {
+                yield Operation::Compare(j, j + 1);
+
+                if numbers[j] > numbers[j + 1] {
+                    numbers.swap(j, j + 1);
+                    yield Operation::Swap(j, j + 1);
+                    swapped = true;
+                }
+            }
+
+            if !swapped {
+                break;
+            }
+        }
+    }
 }
 
 fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> impl Iterator<Item = Operation<T>> {
