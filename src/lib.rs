@@ -138,8 +138,9 @@ impl AlgorithmVisualizer {
                 .clicked()
             {
                 self.state = SortingState::Idle;
-                self.reset_operations();
+                self.numbers = (1..=self.count).collect();
                 self.active_elements = (None, None);
+                self.reset_operations();
             };
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
