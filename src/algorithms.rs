@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, vec::IntoIter};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Algorithm {
@@ -16,7 +16,7 @@ impl Display for Algorithm {
 }
 
 impl Algorithm {
-    pub fn operations<T>(&self) -> fn(Vec<T>) -> Vec<Operation<T>>
+    pub fn operations<T>(&self) -> fn(Vec<T>) -> IntoIter<Operation<T>>
     where
         T: Ord + Clone + 'static,
     {
@@ -53,12 +53,12 @@ impl<T: Ord + Clone> Operation<T> {
     }
 }
 
-fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
     if length < 2 {
-        return operations;
+        return operations.into_iter();
     }
 
     for i in 0..(length - 1) {
@@ -79,15 +79,15 @@ fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
         }
     }
 
-    operations
+    operations.into_iter()
 }
 
-fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
     if length < 2 {
-        return operations;
+        return operations.into_iter();
     }
 
     for i in 0..(length - 1) {
@@ -105,15 +105,15 @@ fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
         operations.push(Operation::Swap(i, min_index));
     }
 
-    operations
+    operations.into_iter()
 }
 
-fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
+fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
     if length < 2 {
-        return operations;
+        return operations.into_iter();
     }
 
     for i in 1..length {
@@ -136,7 +136,7 @@ fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
         operations.push(Operation::WriteValue(insert_index, current_value))
     }
 
-    operations
+    operations.into_iter()
 }
 
 fn merge_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
@@ -194,8 +194,8 @@ fn merge_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
     operations
 }
 
-fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
-    merge_sort_inner(&mut numbers)
+fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+    merge_sort_inner(&mut numbers).into_iter()
 }
 
 fn quick_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
@@ -241,8 +241,8 @@ fn quick_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
     operations
 }
 
-fn quick_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
-    quick_sort_inner(&mut numbers)
+fn quick_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+    quick_sort_inner(&mut numbers).into_iter()
 }
 
 #[cfg(test)]
@@ -269,8 +269,7 @@ mod tests {
 
                     let numbers_clone = numbers.clone();
                     $algorithm.operations()(numbers_clone)
-                        .iter()
-                        .for_each(|operation| apply_operation(&mut numbers, *operation));
+                        .for_each(|operation| apply_operation(&mut numbers, operation));
 
                     numbers == sorted
                 };
