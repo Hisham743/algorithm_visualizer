@@ -164,8 +164,6 @@ fn merge_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
     let right_half_len = right_half.len();
 
     while i < left_half_len && j < right_half_len {
-        operations.push(Operation::CompareToValue(i)); // WRONG
-
         if left_half[i] < right_half[j] {
             numbers[k] = left_half[i].clone();
             operations.push(Operation::WriteValue(k, left_half[i].clone()));
