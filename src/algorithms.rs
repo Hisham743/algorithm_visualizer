@@ -8,6 +8,7 @@ pub enum Algorithm {
     Merge,
     Quick,
     Heap,
+    Gnome,
 }
 
 impl Display for Algorithm {
@@ -28,6 +29,7 @@ impl Algorithm {
             Self::Merge => |numbers| merge_sort(numbers),
             Self::Quick => |numbers| quick_sort(numbers),
             Self::Heap => |numbers| heap_sort(numbers),
+            Self::Gnome => |numbers| gnome_sort(numbers),
         }
     }
 }
@@ -309,6 +311,33 @@ fn heap_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
     operations.into_iter()
 }
 
+fn gnome_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations.into_iter();
+    }
+
+    let mut index = 0;
+    while index < length {
+        if index == 0 {
+            index += 1;
+        }
+
+        operations.push(Operation::Compare(index, index - 1));
+        if numbers[index] >= numbers[index - 1] {
+            index += 1;
+        } else {
+            numbers.swap(index, index - 1);
+            operations.push(Operation::Swap(index, index - 1));
+            index -= 1;
+        }
+    }
+
+    operations.into_iter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -356,4 +385,5 @@ mod tests {
     test_algorithm!(merge_sort_test, Algorithm::Merge);
     test_algorithm!(quick_sort_test, Algorithm::Quick);
     test_algorithm!(heap_sort_test, Algorithm::Heap);
+    test_algorithm!(gnome_sort_test, Algorithm::Gnome);
 }
