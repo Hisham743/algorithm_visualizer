@@ -3,9 +3,9 @@
 mod algorithms;
 
 use eframe::egui;
-use std::time::Duration;
+use std::{time::Duration, vec::IntoIter};
 
-use algorithms::{Algorithm, Snapshot};
+use algorithms::{Algorithm, Operation};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SortingState {
@@ -18,8 +18,8 @@ pub struct AlgorithmVisualizer {
     count: u16,
     state: SortingState,
     algorithm: Algorithm,
-    snapshot: Snapshot<u16>,
-    steps: Box<dyn Iterator<Item = Snapshot<u16>>>,
+    numbers: Vec<u16>,
+    operations: IntoIter<Operation<u16>>,
 }
 
 impl Default for AlgorithmVisualizer {
@@ -27,17 +27,15 @@ impl Default for AlgorithmVisualizer {
         let mut numbers = (1..=100).collect::<Vec<u16>>();
         fastrand::shuffle(&mut numbers);
 
-        let snapshot = Snapshot {
-            numbers: numbers.clone(),
-            active_element: None,
-        };
+        let algorithm = Algorithm::Bubble;
+        let operations = algorithm.operations()(numbers.clone());
 
         AlgorithmVisualizer {
             count: 100,
             state: SortingState::Idle,
-            algorithm: Algorithm::Bubble,
-            snapshot,
-            steps: Box::new(Algorithm::Bubble.steps()(numbers)),
+            algorithm,
+            numbers,
+            operations,
         }
     }
 }
@@ -46,6 +44,10 @@ impl AlgorithmVisualizer {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         Self::default()
+    }
+
+    fn reset_operations(&mut self) {
+        self.operations = self.algorithm.operations()(self.numbers.clone());
     }
 
     fn options_panel(&mut self, ui: &mut egui::Ui) {
@@ -100,7 +102,7 @@ impl AlgorithmVisualizer {
                     .on_hover_text("Algorithm");
 
                 if self.algorithm != before {
-                    self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
+                    self.reset_operations();
                 }
             });
 
@@ -109,8 +111,8 @@ impl AlgorithmVisualizer {
                 .on_hover_text("Randomize")
                 .clicked()
             {
-                fastrand::shuffle(&mut self.snapshot.numbers);
-                self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
+                fastrand::shuffle(&mut self.numbers);
+                self.reset_operations();
             }
 
             if ui
@@ -127,8 +129,8 @@ impl AlgorithmVisualizer {
                 .clicked()
             {
                 self.state = SortingState::Idle;
-                self.steps = self.algorithm.steps()(self.snapshot.numbers.clone());
-                self.snapshot.active_element = None;
+                self.reset_operations();
+                // self.snapshot.active_element = None;
             };
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -137,8 +139,8 @@ impl AlgorithmVisualizer {
                     .on_hover_text("Number of elements")
                     .changed()
                 {
-                    self.snapshot.numbers = (1..=self.count).collect();
-                    self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
+                    self.numbers = (1..=self.count).collect();
+                    self.reset_operations();
                 }
             });
         });
@@ -150,13 +152,13 @@ impl AlgorithmVisualizer {
                 ui.allocate_painter(ui.available_size(), egui::Sense::hover());
 
             if self.state == SortingState::Running {
-                let step = self.steps.next();
+                let operation = self.operations.next();
 
-                match step {
-                    Some(snapshot) => self.snapshot = snapshot,
+                match operation {
+                    Some(operation) => operation.apply(&mut self.numbers),
                     None => {
                         self.state = SortingState::Idle;
-                        self.steps = self.algorithm.steps()(self.snapshot.numbers.clone())
+                        self.reset_operations();
                     }
                 }
             }
@@ -164,31 +166,27 @@ impl AlgorithmVisualizer {
             let area = response.rect;
             let bar_width = area.width() / self.count as f32;
             let bar_height_per_size = area.height() / self.count as f32;
-            self.snapshot
-                .numbers
-                .iter()
-                .enumerate()
-                .for_each(|(index, number)| {
-                    let left_x = area.min.x + bar_width * index as f32;
-                    let right_x = left_x + bar_width;
-                    let bottom_y = area.max.y;
-                    let top_y = area.max.y - bar_height_per_size * *number as f32;
+            self.numbers.iter().enumerate().for_each(|(index, number)| {
+                let left_x = area.min.x + bar_width * index as f32;
+                let right_x = left_x + bar_width;
+                let bottom_y = area.max.y;
+                let top_y = area.max.y - bar_height_per_size * *number as f32;
 
-                    let bar = egui::Rect::from_two_pos(
-                        egui::pos2(left_x, bottom_y),
-                        egui::pos2(right_x, top_y),
-                    );
+                let bar = egui::Rect::from_two_pos(
+                    egui::pos2(left_x, bottom_y),
+                    egui::pos2(right_x, top_y),
+                );
 
-                    let colour = if let Some(active_index) = self.snapshot.active_element
-                        && active_index == index
-                    {
-                        egui::Color32::from_rgb(u8::MAX, 0, 0)
-                    } else {
-                        egui::Color32::from_gray(u8::MAX)
-                    };
+                // let colour = if let Some(active_index) = self.snapshot.active_element
+                //     && active_index == index
+                // {
+                //     egui::Color32::from_rgb(u8::MAX, 0, 0)
+                // } else {
+                //     egui::Color32::from_gray(u8::MAX)
+                // };
 
-                    painter.rect_filled(bar, 0., colour);
-                });
+                painter.rect_filled(bar, 0., egui::Color32::from_gray(255));
+            });
         });
     }
 }
