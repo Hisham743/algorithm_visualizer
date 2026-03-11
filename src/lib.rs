@@ -199,7 +199,6 @@ impl AlgorithmVisualizer {
                         is_stopped,
                         DragValue::new(&mut self.speed)
                             .range(1..=100)
-                            .prefix("Speed: ")
                             .suffix(" ops/s"),
                     )
                     .on_hover_text("Speed")
