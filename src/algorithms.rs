@@ -42,6 +42,17 @@ pub enum Operation<T: Ord + Clone> {
 impl<T: Ord + Copy> Copy for Operation<T> {}
 
 impl<T: Ord + Clone> Operation<T> {
+    fn apply(self, numbers: &mut [T]) {
+        match self {
+            Operation::Write(i, j) => numbers[i] = numbers[j].clone(),
+            Operation::WriteValue(index, value) => numbers[index] = value,
+            Operation::Swap(i, j) => numbers.swap(i, j),
+            _ => {}
+        }
+    }
+}
+
+impl<T: Ord + Clone> Operation<T> {
     fn shift_index(&mut self, shift: usize) {
         *self = match self {
             Self::Compare(i, j) => Self::Compare(*i + shift, *j + shift),
@@ -250,15 +261,6 @@ mod tests {
     use super::*;
     use std::iter;
 
-    fn apply_operation(numbers: &mut [i32], operation: Operation<i32>) {
-        match operation {
-            Operation::Write(i, j) => numbers[i] = numbers[j],
-            Operation::WriteValue(index, value) => numbers[index] = value,
-            Operation::Swap(i, j) => numbers.swap(i, j),
-            _ => {}
-        }
-    }
-
     macro_rules! test_algorithm {
         ($test_name:ident, $algorithm:expr) => {
             #[test]
@@ -269,7 +271,7 @@ mod tests {
 
                     let numbers_clone = numbers.clone();
                     $algorithm.operations()(numbers_clone)
-                        .for_each(|operation| apply_operation(&mut numbers, operation));
+                        .for_each(|operation| operation.apply(&mut numbers));
 
                     numbers == sorted
                 };
