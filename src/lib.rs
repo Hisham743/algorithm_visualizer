@@ -2,7 +2,11 @@
 
 mod algorithms;
 
-use eframe::egui;
+use eframe::{
+    CreationContext,
+    egui::{self, Align, Button, CentralPanel, Color32, ComboBox, Context, Layout, Rect, Slider},
+};
+
 use std::{time::Duration, vec::IntoIter};
 
 use algorithms::{Algorithm, Operation};
@@ -14,11 +18,18 @@ enum SortingState {
     Paused,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct HiglightedElement {
+    index: usize,
+    color: egui::Color32,
+}
+
 pub struct AlgorithmVisualizer {
     count: u16,
     state: SortingState,
     algorithm: Algorithm,
     numbers: Vec<u16>,
+    active_elements: (Option<HiglightedElement>, Option<HiglightedElement>),
     operations: IntoIter<Operation<u16>>,
 }
 
@@ -35,13 +46,20 @@ impl Default for AlgorithmVisualizer {
             state: SortingState::Idle,
             algorithm,
             numbers,
+            active_elements: (None, None),
             operations,
         }
     }
 }
 
 impl AlgorithmVisualizer {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    const WHITE: Color32 = Color32::from_gray(u8::MAX);
+    const RED: Color32 = Color32::from_rgb(u8::MAX, u8::MIN, u8::MIN);
+    const ORANGE: Color32 = Color32::from_rgb(u8::MAX, 165, u8::MAX);
+    const GREEN: Color32 = Color32::from_rgb(u8::MIN, u8::MAX, u8::MIN);
+    const BLUE: Color32 = Color32::from_rgb(u8::MIN, u8::MIN, u8::MAX);
+
+    pub fn new(cc: &CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         Self::default()
     }
@@ -69,7 +87,7 @@ impl AlgorithmVisualizer {
             ui.add_enabled_ui(is_stopped, |ui| {
                 let before = self.algorithm;
 
-                egui::ComboBox::from_id_salt("Algorithm")
+                ComboBox::from_id_salt("Algorithm")
                     .selected_text(self.algorithm.to_string())
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
@@ -107,7 +125,7 @@ impl AlgorithmVisualizer {
             });
 
             if ui
-                .add_enabled(is_stopped, egui::Button::image(randomize_icon))
+                .add_enabled(is_stopped, Button::image(randomize_icon))
                 .on_hover_text("Randomize")
                 .clicked()
             {
@@ -116,7 +134,7 @@ impl AlgorithmVisualizer {
             }
 
             if ui
-                .add(egui::Button::image(resume_pause_icon))
+                .add(Button::image(resume_pause_icon))
                 .on_hover_text(resume_pause_tooltip)
                 .clicked()
             {
@@ -124,18 +142,18 @@ impl AlgorithmVisualizer {
             }
 
             if ui
-                .add_enabled(!is_stopped, egui::Button::image(stop_icon))
+                .add_enabled(!is_stopped, Button::image(stop_icon))
                 .on_hover_text("Stop")
                 .clicked()
             {
                 self.state = SortingState::Idle;
                 self.reset_operations();
-                // self.snapshot.active_element = None;
+                self.active_elements = (None, None);
             };
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui
-                    .add_enabled(is_stopped, egui::Slider::new(&mut self.count, 10..=1000))
+                    .add_enabled(is_stopped, Slider::new(&mut self.count, 10..=1000))
                     .on_hover_text("Number of elements")
                     .changed()
                 {
@@ -155,10 +173,76 @@ impl AlgorithmVisualizer {
                 let operation = self.operations.next();
 
                 match operation {
-                    Some(operation) => operation.apply(&mut self.numbers),
+                    Some(operation) => {
+                        operation.apply(&mut self.numbers);
+
+                        self.active_elements = match operation {
+                            Operation::Compare(i, j) => {
+                                let element_1 = Some(HiglightedElement {
+                                    index: i,
+                                    color: Self::GREEN,
+                                });
+
+                                let element_2 = Some(HiglightedElement {
+                                    index: j,
+                                    color: Self::GREEN,
+                                });
+
+                                (element_1, element_2)
+                            }
+
+                            Operation::CompareToValue(i) => {
+                                let element = Some(HiglightedElement {
+                                    index: i,
+                                    color: Self::GREEN,
+                                });
+
+                                (element, None)
+                            }
+
+                            Operation::Write(i, j) => {
+                                let element_1 = Some(HiglightedElement {
+                                    index: i,
+                                    color: Self::RED,
+                                });
+
+                                let element_2 = Some(HiglightedElement {
+                                    index: j,
+                                    color: Self::ORANGE,
+                                });
+
+                                (element_1, element_2)
+                            }
+
+                            Operation::WriteValue(i, _) => {
+                                let element = Some(HiglightedElement {
+                                    index: i,
+                                    color: Self::RED,
+                                });
+
+                                (element, None)
+                            }
+
+                            Operation::Swap(i, j) => {
+                                let element_1 = Some(HiglightedElement {
+                                    index: i,
+                                    color: Self::BLUE,
+                                });
+
+                                let element_2 = Some(HiglightedElement {
+                                    index: j,
+                                    color: Self::BLUE,
+                                });
+
+                                (element_1, element_2)
+                            }
+                        }
+                    }
+
                     None => {
                         self.state = SortingState::Idle;
                         self.reset_operations();
+                        self.active_elements = (None, None);
                     }
                 }
             }
@@ -172,32 +256,42 @@ impl AlgorithmVisualizer {
                 let bottom_y = area.max.y;
                 let top_y = area.max.y - bar_height_per_size * *number as f32;
 
-                let bar = egui::Rect::from_two_pos(
-                    egui::pos2(left_x, bottom_y),
-                    egui::pos2(right_x, top_y),
-                );
+                let bar =
+                    Rect::from_two_pos(egui::pos2(left_x, bottom_y), egui::pos2(right_x, top_y));
 
-                // let colour = if let Some(active_index) = self.snapshot.active_element
-                //     && active_index == index
-                // {
-                //     egui::Color32::from_rgb(u8::MAX, 0, 0)
-                // } else {
-                //     egui::Color32::from_gray(u8::MAX)
-                // };
+                let mut color = Self::WHITE;
+                match self.active_elements {
+                    (Some(element_1), Some(element_2)) => {
+                        if element_1.index == index {
+                            color = element_1.color;
+                        } else if element_2.index == index {
+                            color = element_2.color
+                        }
+                    }
 
-                painter.rect_filled(bar, 0., egui::Color32::from_gray(255));
+                    (Some(element), None) => {
+                        if element.index == index {
+                            color = element.color;
+                        }
+                    }
+
+                    (None, Some(_)) => unreachable!(),
+                    (None, None) => {}
+                }
+
+                painter.rect_filled(bar, 0., color);
             });
         });
     }
 }
 
 impl eframe::App for AlgorithmVisualizer {
-    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("options")
             .show_separator_line(false)
             .show(ctx, |ui| self.options_panel(ui));
 
-        egui::CentralPanel::default().show(ctx, |ui| self.sorting_panel(ui));
+        CentralPanel::default().show(ctx, |ui| self.sorting_panel(ui));
 
         ctx.request_repaint_after(Duration::from_millis(1000 / 60_u64));
     }
