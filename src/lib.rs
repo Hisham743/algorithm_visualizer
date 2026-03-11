@@ -126,6 +126,11 @@ impl AlgorithmVisualizer {
                     Algorithm::Quick,
                     Algorithm::Quick.to_string(),
                 );
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::Heap,
+                    Algorithm::Heap.to_string(),
+                );
             })
             .response
             .on_hover_text("Algorithm");
@@ -199,6 +204,7 @@ impl AlgorithmVisualizer {
                         is_stopped,
                         DragValue::new(&mut self.speed)
                             .range(1..=100)
+                            .prefix("Speed: ")
                             .suffix(" ops/s"),
                     )
                     .on_hover_text("Speed")

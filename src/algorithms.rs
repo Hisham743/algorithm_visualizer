@@ -7,6 +7,7 @@ pub enum Algorithm {
     Insertion,
     Merge,
     Quick,
+    Heap,
 }
 
 impl Display for Algorithm {
@@ -26,6 +27,7 @@ impl Algorithm {
             Self::Insertion => |numbers| insertion_sort(numbers),
             Self::Merge => |numbers| merge_sort(numbers),
             Self::Quick => |numbers| quick_sort(numbers),
+            Self::Heap => |numbers| heap_sort(numbers),
         }
     }
 }
@@ -256,6 +258,57 @@ fn quick_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
     quick_sort_inner(&mut numbers).into_iter()
 }
 
+fn heapify<T: Ord + Clone>(numbers: &mut [T], n: usize, i: usize) -> Vec<Operation<T>> {
+    let mut operations = Vec::new();
+
+    let mut largest = i;
+    let left = 2 * i + 1;
+    let right = 2 * i + 2;
+
+    if left < n {
+        operations.push(Operation::Compare(left, largest));
+        if numbers[left] > numbers[largest] {
+            largest = left;
+        }
+    }
+
+    if right < n {
+        operations.push(Operation::Compare(right, largest));
+        if numbers[right] > numbers[largest] {
+            largest = right;
+        }
+    }
+
+    if largest != i {
+        numbers.swap(i, largest);
+        operations.push(Operation::Swap(i, largest));
+        operations.extend(heapify(numbers, n, largest));
+    }
+
+    operations
+}
+
+fn heap_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations.into_iter();
+    }
+
+    (0..=(length / 2 - 1))
+        .rev()
+        .for_each(|i| operations.extend(heapify(&mut numbers, length, i)));
+
+    (1..=(length - 1)).rev().for_each(|i| {
+        numbers.swap(0, i);
+        operations.push(Operation::Swap(0, i));
+        operations.extend(heapify(&mut numbers, i, 0));
+    });
+
+    operations.into_iter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -302,4 +355,5 @@ mod tests {
     test_algorithm!(insertion_sort_test, Algorithm::Insertion);
     test_algorithm!(merge_sort_test, Algorithm::Merge);
     test_algorithm!(quick_sort_test, Algorithm::Quick);
+    test_algorithm!(heap_sort_test, Algorithm::Heap);
 }
