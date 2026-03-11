@@ -26,11 +26,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
       - name: Install WASM toolchain
-        run: |
-          rustup set profile minimal
-          rustup target add wasm32-unknown-unknown
+        run: rustup target add wasm32-unknown-unknown
       - name: Install trunk
         run: cargo install --locked trunk
       - name: Build project

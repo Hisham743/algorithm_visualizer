@@ -12,10 +12,6 @@ A sorting algorithm visualizer built in Rust with [egui](https://github.com/emil
 - Merge Sort
 - Quick Sort
 
-## Requirements
-
-The project uses the experimental `gen_blocks` nightly feature. The required nightly version is pinned in `rust-toolchain.toml`.
-
 ## Running Natively
 
 ```sh

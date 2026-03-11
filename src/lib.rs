@@ -1,5 +1,3 @@
-#![feature(gen_blocks)]
-
 mod algorithms;
 
 use eframe::{
