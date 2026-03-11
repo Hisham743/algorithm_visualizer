@@ -3,7 +3,9 @@ mod algorithms;
 use algorithms::{Algorithm, Operation};
 use eframe::{
     App, CreationContext,
-    egui::{self, Align, Button, CentralPanel, ComboBox, Context, Layout, Rect, Slider, Ui},
+    egui::{
+        self, Align, Button, CentralPanel, ComboBox, Context, DragValue, Layout, Rect, Slider, Ui,
+    },
 };
 use std::{time::Duration, vec::IntoIter};
 
@@ -184,10 +186,7 @@ impl AlgorithmVisualizer {
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui
-                    .add_enabled(
-                        is_stopped,
-                        Slider::new(&mut self.count, 10..=1000).text("N:"),
-                    )
+                    .add_enabled(is_stopped, Slider::new(&mut self.count, 10..=1000))
                     .on_hover_text("Number of elements")
                     .changed()
                 {
@@ -198,7 +197,10 @@ impl AlgorithmVisualizer {
                 if ui
                     .add_enabled(
                         is_stopped,
-                        Slider::new(&mut self.speed, 1..=100).text("Speed:"),
+                        DragValue::new(&mut self.speed)
+                            .range(1..=100)
+                            .prefix("Speed: ")
+                            .suffix(" ops/s"),
                     )
                     .on_hover_text("Speed")
                     .changed()
