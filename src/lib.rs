@@ -7,6 +7,11 @@ use eframe::{
 };
 use std::{time::Duration, vec::IntoIter};
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_sys::{Performance, window};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SortingState {
     Idle,
@@ -24,9 +29,18 @@ pub struct AlgorithmVisualizer {
     count: u16,
     state: SortingState,
     algorithm: Algorithm,
+    tick: Duration,
     numbers: Vec<u16>,
     active_elements: (Option<HiglightedElement>, Option<HiglightedElement>),
     operations: IntoIter<Operation<u16>>,
+
+    #[cfg(not(target_arch = "wasm32"))]
+    last_operation_instant: Instant,
+
+    #[cfg(target_arch = "wasm32")]
+    performance: Performance,
+    #[cfg(target_arch = "wasm32")]
+    last_operation_instant: f64,
 }
 
 impl Default for AlgorithmVisualizer {
@@ -37,13 +51,29 @@ impl Default for AlgorithmVisualizer {
         let algorithm = Algorithm::Bubble;
         let operations = algorithm.operations()(numbers.clone());
 
+        #[cfg(target_arch = "wasm32")]
+        let performance = window()
+            .expect("no window")
+            .performance()
+            .expect("no performance");
+        #[cfg(target_arch = "wasm32")]
+        let instant = performance.now();
+
         AlgorithmVisualizer {
             count: 100,
             state: SortingState::Idle,
             algorithm,
+            tick: Duration::from_millis(1000 / 10), // 10 ticks per second
+            #[cfg(not(target_arch = "wasm32"))]
+            last_operation_instant: Instant::now(),
             numbers,
             active_elements: (None, None),
             operations,
+
+            #[cfg(target_arch = "wasm32")]
+            performance,
+            #[cfg(target_arch = "wasm32")]
+            last_operation_instant: instant,
         }
     }
 }
@@ -164,8 +194,22 @@ impl AlgorithmVisualizer {
             let (response, painter) =
                 ui.allocate_painter(ui.available_size(), egui::Sense::hover());
 
-            if self.state == SortingState::Running {
+            let is_running = self.state == SortingState::Running;
+
+            #[cfg(not(target_arch = "wasm32"))]
+            let instant = Instant::now();
+            #[cfg(not(target_arch = "wasm32"))]
+            let has_tick_elapsed = (instant - self.last_operation_instant) > self.tick;
+
+            #[cfg(target_arch = "wasm32")]
+            let instant = self.performance.now();
+            #[cfg(target_arch = "wasm32")]
+            let has_tick_elapsed =
+                Duration::from_millis((instant - self.last_operation_instant) as u64) > self.tick;
+
+            if is_running && has_tick_elapsed {
                 next_operation = self.operations.next();
+                self.last_operation_instant = instant;
 
                 match next_operation {
                     Some(operation) => {
@@ -290,6 +334,6 @@ impl App for AlgorithmVisualizer {
 
         CentralPanel::default().show(ctx, |ui| self.sorting_panel(ui));
 
-        ctx.request_repaint_after(Duration::from_millis(1000));
+        ctx.request_repaint_after(self.tick);
     }
 }
