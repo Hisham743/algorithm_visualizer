@@ -1,13 +1,11 @@
 mod algorithms;
 
-use eframe::{
-    CreationContext,
-    egui::{self, Align, Button, CentralPanel, Color32, ComboBox, Context, Layout, Rect, Slider},
-};
-
-use std::{time::Duration, vec::IntoIter};
-
 use algorithms::{Algorithm, Operation};
+use eframe::{
+    App, CreationContext,
+    egui::{self, Align, Button, CentralPanel, ComboBox, Context, Layout, Rect, Slider},
+};
+use std::{time::Duration, vec::IntoIter};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SortingState {
@@ -51,14 +49,9 @@ impl Default for AlgorithmVisualizer {
 }
 
 impl AlgorithmVisualizer {
-    const WHITE: Color32 = Color32::from_gray(u8::MAX);
-    const RED: Color32 = Color32::from_rgb(u8::MAX, u8::MIN, u8::MIN);
-    const ORANGE: Color32 = Color32::from_rgb(u8::MAX, 165, u8::MAX);
-    const GREEN: Color32 = Color32::from_rgb(u8::MIN, u8::MAX, u8::MIN);
-    const BLUE: Color32 = Color32::from_rgb(u8::MIN, u8::MIN, u8::MAX);
-
     pub fn new(cc: &CreationContext<'_>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
+        catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MOCHA);
         Self::default()
     }
 
@@ -163,27 +156,28 @@ impl AlgorithmVisualizer {
     }
 
     fn sorting_panel(&mut self, ui: &mut egui::Ui) {
+        let theme = catppuccin_egui::MOCHA;
+        let mut next_operation = None;
+
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
             let (response, painter) =
                 ui.allocate_painter(ui.available_size(), egui::Sense::hover());
 
             if self.state == SortingState::Running {
-                let operation = self.operations.next();
+                next_operation = self.operations.next();
 
-                match operation {
+                match next_operation {
                     Some(operation) => {
-                        operation.apply(&mut self.numbers);
-
                         self.active_elements = match operation {
                             Operation::Compare(i, j) => {
                                 let element_1 = Some(HiglightedElement {
                                     index: i,
-                                    color: Self::GREEN,
+                                    color: theme.green,
                                 });
 
                                 let element_2 = Some(HiglightedElement {
                                     index: j,
-                                    color: Self::GREEN,
+                                    color: theme.green,
                                 });
 
                                 (element_1, element_2)
@@ -192,7 +186,7 @@ impl AlgorithmVisualizer {
                             Operation::CompareToValue(i) => {
                                 let element = Some(HiglightedElement {
                                     index: i,
-                                    color: Self::GREEN,
+                                    color: theme.green,
                                 });
 
                                 (element, None)
@@ -201,12 +195,12 @@ impl AlgorithmVisualizer {
                             Operation::Write(i, j) => {
                                 let element_1 = Some(HiglightedElement {
                                     index: i,
-                                    color: Self::RED,
+                                    color: theme.red,
                                 });
 
                                 let element_2 = Some(HiglightedElement {
                                     index: j,
-                                    color: Self::ORANGE,
+                                    color: theme.peach,
                                 });
 
                                 (element_1, element_2)
@@ -215,7 +209,7 @@ impl AlgorithmVisualizer {
                             Operation::WriteValue(i, _) => {
                                 let element = Some(HiglightedElement {
                                     index: i,
-                                    color: Self::RED,
+                                    color: theme.red,
                                 });
 
                                 (element, None)
@@ -224,12 +218,12 @@ impl AlgorithmVisualizer {
                             Operation::Swap(i, j) => {
                                 let element_1 = Some(HiglightedElement {
                                     index: i,
-                                    color: Self::BLUE,
+                                    color: theme.blue,
                                 });
 
                                 let element_2 = Some(HiglightedElement {
                                     index: j,
-                                    color: Self::BLUE,
+                                    color: theme.blue,
                                 });
 
                                 (element_1, element_2)
@@ -257,7 +251,7 @@ impl AlgorithmVisualizer {
                 let bar =
                     Rect::from_two_pos(egui::pos2(left_x, bottom_y), egui::pos2(right_x, top_y));
 
-                let mut color = Self::WHITE;
+                let mut color = theme.text;
                 match self.active_elements {
                     (Some(element_1), Some(element_2)) => {
                         if element_1.index == index {
@@ -279,11 +273,15 @@ impl AlgorithmVisualizer {
 
                 painter.rect_filled(bar, 0., color);
             });
+
+            if let Some(operation) = next_operation {
+                operation.apply(&mut self.numbers);
+            }
         });
     }
 }
 
-impl eframe::App for AlgorithmVisualizer {
+impl App for AlgorithmVisualizer {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         egui::TopBottomPanel::top("options")
             .show_separator_line(false)
@@ -291,6 +289,6 @@ impl eframe::App for AlgorithmVisualizer {
 
         CentralPanel::default().show(ctx, |ui| self.sorting_panel(ui));
 
-        ctx.request_repaint_after(Duration::from_millis(1000 / 60_u64));
+        ctx.request_repaint_after(Duration::from_millis(1000));
     }
 }

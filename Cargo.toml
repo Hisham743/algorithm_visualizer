@@ -7,6 +7,9 @@ edition = "2024"
 eframe = { version = "0.33.3", features = ["wgpu"] }
 egui_extras = { version = "0.33.3", features = ["image"] }
 fastrand = "2.3.0"
+catppuccin-egui = { version = "5.7.0", default-features = false, features = [
+    "egui33",
+] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4.64"
