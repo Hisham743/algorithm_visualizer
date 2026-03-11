@@ -29,6 +29,7 @@ pub struct AlgorithmVisualizer {
     count: u16,
     state: SortingState,
     algorithm: Algorithm,
+    speed: u8,
     tick: Duration,
     numbers: Vec<u16>,
     active_elements: (Option<HiglightedElement>, Option<HiglightedElement>),
@@ -50,6 +51,7 @@ impl Default for AlgorithmVisualizer {
 
         let algorithm = Algorithm::Bubble;
         let operations = algorithm.operations()(numbers.clone());
+        let speed = 10;
 
         #[cfg(target_arch = "wasm32")]
         let performance = web_sys::window()
@@ -63,7 +65,8 @@ impl Default for AlgorithmVisualizer {
             count: 100,
             state: SortingState::Idle,
             algorithm,
-            tick: Duration::from_millis(1000 / 10), // 10 ticks per second
+            speed,
+            tick: Duration::from_millis(1000 / speed as u64),
             numbers,
             active_elements: (None, None),
             operations,
@@ -181,12 +184,26 @@ impl AlgorithmVisualizer {
 
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui
-                    .add_enabled(is_stopped, Slider::new(&mut self.count, 10..=1000))
+                    .add_enabled(
+                        is_stopped,
+                        Slider::new(&mut self.count, 10..=1000).text("N:"),
+                    )
                     .on_hover_text("Number of elements")
                     .changed()
                 {
                     self.numbers = (1..=self.count).collect();
                     self.reset_operations();
+                }
+
+                if ui
+                    .add_enabled(
+                        is_stopped,
+                        Slider::new(&mut self.speed, 1..=100).text("Speed:"),
+                    )
+                    .on_hover_text("Speed")
+                    .changed()
+                {
+                    self.tick = Duration::from_millis(1000 / self.speed as u64);
                 }
             });
         });
