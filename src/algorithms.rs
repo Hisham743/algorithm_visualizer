@@ -42,7 +42,7 @@ pub enum Operation<T: Ord + Clone> {
 impl<T: Ord + Copy> Copy for Operation<T> {}
 
 impl<T: Ord + Clone> Operation<T> {
-    fn apply(self, numbers: &mut [T]) {
+    pub fn apply(self, numbers: &mut [T]) {
         match self {
             Operation::Write(i, j) => numbers[i] = numbers[j].clone(),
             Operation::WriteValue(index, value) => numbers[index] = value,
@@ -243,7 +243,7 @@ fn quick_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
 
     operations.extend(quick_sort_inner(left));
 
-    let mut right_operations = merge_sort_inner(&mut right[1..]);
+    let mut right_operations = quick_sort_inner(&mut right[1..]);
     for operation in &mut right_operations {
         operation.shift_index(pivot_index + 1);
     }
