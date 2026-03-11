@@ -3,14 +3,14 @@ mod algorithms;
 use algorithms::{Algorithm, Operation};
 use eframe::{
     App, CreationContext,
-    egui::{self, Align, Button, CentralPanel, ComboBox, Context, Layout, Rect, Slider},
+    egui::{self, Align, Button, CentralPanel, ComboBox, Context, Layout, Rect, Slider, Ui},
 };
 use std::{time::Duration, vec::IntoIter};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
-use web_sys::{Performance, window};
+use web_sys::Performance;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SortingState {
@@ -52,7 +52,7 @@ impl Default for AlgorithmVisualizer {
         let operations = algorithm.operations()(numbers.clone());
 
         #[cfg(target_arch = "wasm32")]
-        let performance = window()
+        let performance = web_sys::window()
             .expect("no window")
             .performance()
             .expect("no performance");
@@ -64,11 +64,12 @@ impl Default for AlgorithmVisualizer {
             state: SortingState::Idle,
             algorithm,
             tick: Duration::from_millis(1000 / 10), // 10 ticks per second
-            #[cfg(not(target_arch = "wasm32"))]
-            last_operation_instant: Instant::now(),
             numbers,
             active_elements: (None, None),
             operations,
+
+            #[cfg(not(target_arch = "wasm32"))]
+            last_operation_instant: Instant::now(),
 
             #[cfg(target_arch = "wasm32")]
             performance,
@@ -89,61 +90,56 @@ impl AlgorithmVisualizer {
         self.operations = self.algorithm.operations()(self.numbers.clone());
     }
 
-    fn options_panel(&mut self, ui: &mut egui::Ui) {
+    fn algorithm_input(&mut self, ui: &mut Ui) {
+        let before = self.algorithm;
+
+        ComboBox::from_id_salt("Algorithm")
+            .selected_text(self.algorithm.to_string())
+            .show_ui(ui, |ui| {
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::Bubble,
+                    Algorithm::Bubble.to_string(),
+                );
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::Selection,
+                    Algorithm::Selection.to_string(),
+                );
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::Insertion,
+                    Algorithm::Insertion.to_string(),
+                );
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::Merge,
+                    Algorithm::Merge.to_string(),
+                );
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::Quick,
+                    Algorithm::Quick.to_string(),
+                );
+            })
+            .response
+            .on_hover_text("Algorithm");
+
+        if self.algorithm != before {
+            self.reset_operations();
+        }
+    }
+
+    fn options_panel(&mut self, ui: &mut Ui) {
         let randomize_icon = egui::include_image!("./images/randomize.png");
         let resume_icon = egui::include_image!("./images/resume.png");
         let pause_icon = egui::include_image!("./images/pause.png");
         let stop_icon = egui::include_image!("./images/stop.png");
 
-        let (resume_pause_icon, resume_pause_tooltip, next_state) =
-            if self.state == SortingState::Running {
-                (pause_icon, "Pause", SortingState::Paused)
-            } else {
-                (resume_icon, "Sort", SortingState::Running)
-            };
-
         let is_stopped = self.state == SortingState::Idle;
 
         ui.horizontal(|ui| {
-            ui.add_enabled_ui(is_stopped, |ui| {
-                let before = self.algorithm;
-
-                ComboBox::from_id_salt("Algorithm")
-                    .selected_text(self.algorithm.to_string())
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut self.algorithm,
-                            Algorithm::Bubble,
-                            Algorithm::Bubble.to_string(),
-                        );
-                        ui.selectable_value(
-                            &mut self.algorithm,
-                            Algorithm::Selection,
-                            Algorithm::Selection.to_string(),
-                        );
-                        ui.selectable_value(
-                            &mut self.algorithm,
-                            Algorithm::Insertion,
-                            Algorithm::Insertion.to_string(),
-                        );
-                        ui.selectable_value(
-                            &mut self.algorithm,
-                            Algorithm::Merge,
-                            Algorithm::Merge.to_string(),
-                        );
-                        ui.selectable_value(
-                            &mut self.algorithm,
-                            Algorithm::Quick,
-                            Algorithm::Quick.to_string(),
-                        );
-                    })
-                    .response
-                    .on_hover_text("Algorithm");
-
-                if self.algorithm != before {
-                    self.reset_operations();
-                }
-            });
+            ui.add_enabled_ui(is_stopped, |ui| self.algorithm_input(ui));
 
             if ui
                 .add_enabled(is_stopped, Button::image(randomize_icon))
@@ -154,13 +150,23 @@ impl AlgorithmVisualizer {
                 self.reset_operations();
             }
 
-            if ui
-                .add(Button::image(resume_pause_icon))
-                .on_hover_text(resume_pause_tooltip)
-                .clicked()
-            {
-                self.state = next_state;
-            }
+            if self.state == SortingState::Running {
+                if ui
+                    .add(Button::image(pause_icon))
+                    .on_hover_text("Pause")
+                    .clicked()
+                {
+                    self.state = SortingState::Paused;
+                }
+            } else {
+                if ui
+                    .add(Button::image(resume_icon))
+                    .on_hover_text(if is_stopped { "Sort" } else { "Resume" })
+                    .clicked()
+                {
+                    self.state = SortingState::Running;
+                }
+            };
 
             if ui
                 .add_enabled(!is_stopped, Button::image(stop_icon))
@@ -186,8 +192,73 @@ impl AlgorithmVisualizer {
         });
     }
 
-    fn sorting_panel(&mut self, ui: &mut egui::Ui) {
+    fn set_active_elements(&mut self, operation: Operation<u16>) {
         let theme = catppuccin_egui::MOCHA;
+
+        self.active_elements = match operation {
+            Operation::Compare(i, j) => {
+                let element_1 = Some(HiglightedElement {
+                    index: i,
+                    color: theme.green,
+                });
+
+                let element_2 = Some(HiglightedElement {
+                    index: j,
+                    color: theme.green,
+                });
+
+                (element_1, element_2)
+            }
+
+            Operation::CompareToValue(i) => {
+                let element = Some(HiglightedElement {
+                    index: i,
+                    color: theme.green,
+                });
+
+                (element, None)
+            }
+
+            Operation::Write(i, j) => {
+                let element_1 = Some(HiglightedElement {
+                    index: i,
+                    color: theme.red,
+                });
+
+                let element_2 = Some(HiglightedElement {
+                    index: j,
+                    color: theme.peach,
+                });
+
+                (element_1, element_2)
+            }
+
+            Operation::WriteValue(i, _) => {
+                let element = Some(HiglightedElement {
+                    index: i,
+                    color: theme.red,
+                });
+
+                (element, None)
+            }
+
+            Operation::Swap(i, j) => {
+                let element_1 = Some(HiglightedElement {
+                    index: i,
+                    color: theme.blue,
+                });
+
+                let element_2 = Some(HiglightedElement {
+                    index: j,
+                    color: theme.blue,
+                });
+
+                (element_1, element_2)
+            }
+        }
+    }
+
+    fn sorting_panel(&mut self, ui: &mut Ui) {
         let mut next_operation = None;
 
         egui::Frame::canvas(ui.style()).show(ui, |ui| {
@@ -212,70 +283,7 @@ impl AlgorithmVisualizer {
                 self.last_operation_instant = instant;
 
                 match next_operation {
-                    Some(operation) => {
-                        self.active_elements = match operation {
-                            Operation::Compare(i, j) => {
-                                let element_1 = Some(HiglightedElement {
-                                    index: i,
-                                    color: theme.green,
-                                });
-
-                                let element_2 = Some(HiglightedElement {
-                                    index: j,
-                                    color: theme.green,
-                                });
-
-                                (element_1, element_2)
-                            }
-
-                            Operation::CompareToValue(i) => {
-                                let element = Some(HiglightedElement {
-                                    index: i,
-                                    color: theme.green,
-                                });
-
-                                (element, None)
-                            }
-
-                            Operation::Write(i, j) => {
-                                let element_1 = Some(HiglightedElement {
-                                    index: i,
-                                    color: theme.red,
-                                });
-
-                                let element_2 = Some(HiglightedElement {
-                                    index: j,
-                                    color: theme.peach,
-                                });
-
-                                (element_1, element_2)
-                            }
-
-                            Operation::WriteValue(i, _) => {
-                                let element = Some(HiglightedElement {
-                                    index: i,
-                                    color: theme.red,
-                                });
-
-                                (element, None)
-                            }
-
-                            Operation::Swap(i, j) => {
-                                let element_1 = Some(HiglightedElement {
-                                    index: i,
-                                    color: theme.blue,
-                                });
-
-                                let element_2 = Some(HiglightedElement {
-                                    index: j,
-                                    color: theme.blue,
-                                });
-
-                                (element_1, element_2)
-                            }
-                        }
-                    }
-
+                    Some(operation) => self.set_active_elements(operation),
                     None => {
                         self.state = SortingState::Idle;
                         self.reset_operations();
@@ -296,7 +304,7 @@ impl AlgorithmVisualizer {
                 let bar =
                     Rect::from_two_pos(egui::pos2(left_x, bottom_y), egui::pos2(right_x, top_y));
 
-                let mut color = theme.text;
+                let mut color = catppuccin_egui::MOCHA.text;
                 match self.active_elements {
                     (Some(element_1), Some(element_2)) => {
                         if element_1.index == index {
