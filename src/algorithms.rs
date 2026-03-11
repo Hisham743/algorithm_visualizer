@@ -164,7 +164,7 @@ fn merge_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
     let right_half_len = right_half.len();
 
     while i < left_half_len && j < right_half_len {
-        operations.push(Operation::CompareToValue(i));
+        operations.push(Operation::CompareToValue(i)); // WRONG
 
         if left_half[i] < right_half[j] {
             numbers[k] = left_half[i].clone();
@@ -200,8 +200,51 @@ fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
     merge_sort_inner(&mut numbers)
 }
 
+fn quick_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations;
+    }
+
+    let pivot_element = numbers[(length - 1) / 2].clone();
+    let (mut i, mut j) = (0, length - 1);
+
+    let pivot_index = loop {
+        while numbers[i] < pivot_element {
+            operations.push(Operation::CompareToValue(i));
+            i += 1;
+        }
+
+        while numbers[j] > pivot_element {
+            operations.push(Operation::CompareToValue(j));
+            j -= 1;
+        }
+
+        if i >= j {
+            break j;
+        }
+
+        numbers.swap(i, j);
+        operations.push(Operation::Swap(i, j));
+    };
+
+    let (left, right) = numbers.split_at_mut(pivot_index);
+
+    operations.extend(quick_sort_inner(left));
+
+    let mut right_operations = merge_sort_inner(&mut right[1..]);
+    for operation in &mut right_operations {
+        operation.shift_index(pivot_index + 1);
+    }
+    operations.extend(right_operations);
+
+    operations
+}
+
 fn quick_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> Vec<Operation<T>> {
-    unimplemented!()
+    quick_sort_inner(&mut numbers)
 }
 
 #[cfg(test)]
