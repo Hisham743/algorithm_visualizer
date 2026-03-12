@@ -9,6 +9,7 @@ pub enum Algorithm {
     Quick,
     Heap,
     Gnome,
+    Cocktail,
 }
 
 impl Display for Algorithm {
@@ -30,6 +31,7 @@ impl Algorithm {
             Self::Quick => |numbers| quick_sort(numbers),
             Self::Heap => |numbers| heap_sort(numbers),
             Self::Gnome => |numbers| gnome_sort(numbers),
+            Self::Cocktail => |numbers| cocktail_sort(numbers),
         }
     }
 }
@@ -338,6 +340,52 @@ fn gnome_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
     operations.into_iter()
 }
 
+fn cocktail_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations.into_iter();
+    }
+
+    let mut swapped = true;
+    let mut start = 0;
+    let mut end = length - 1;
+
+    while swapped {
+        swapped = false;
+
+        for i in start..end {
+            operations.push(Operation::Compare(i, i + 1));
+            if numbers[i] > numbers[i + 1] {
+                numbers.swap(i, i + 1);
+                operations.push(Operation::Swap(i, i + 1));
+                swapped = true;
+            }
+        }
+
+        if !swapped {
+            break;
+        }
+
+        swapped = false;
+        end -= 1;
+
+        for i in (start..=(end - 1)).rev() {
+            operations.push(Operation::Compare(i, i + 1));
+            if numbers[i] > numbers[i + 1] {
+                numbers.swap(i, i + 1);
+                operations.push(Operation::Swap(i, i + 1));
+                swapped = true;
+            }
+        }
+
+        start += 1;
+    }
+
+    operations.into_iter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -386,4 +434,5 @@ mod tests {
     test_algorithm!(quick_sort_test, Algorithm::Quick);
     test_algorithm!(heap_sort_test, Algorithm::Heap);
     test_algorithm!(gnome_sort_test, Algorithm::Gnome);
+    test_algorithm!(cocktail_sort_test, Algorithm::Cocktail);
 }

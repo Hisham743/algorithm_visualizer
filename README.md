@@ -11,6 +11,9 @@ A sorting algorithm visualizer built in Rust with [egui](https://github.com/emil
 - Insertion Sort
 - Merge Sort
 - Quick Sort
+- Heap Sort
+- Gnome Sort
+- Cocktail Sort
 
 ## Running Natively
 

@@ -136,6 +136,11 @@ impl AlgorithmVisualizer {
                     Algorithm::Gnome,
                     Algorithm::Gnome.to_string(),
                 );
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::Cocktail,
+                    Algorithm::Cocktail.to_string(),
+                );
             })
             .response
             .on_hover_text("Algorithm");
