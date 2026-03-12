@@ -215,8 +215,7 @@ impl AlgorithmVisualizer {
                 }
 
                 if ui
-                    .add_enabled(
-                        is_stopped,
+                    .add(
                         DragValue::new(&mut self.speed)
                             .range(1..=100)
                             .prefix("Speed: ")
