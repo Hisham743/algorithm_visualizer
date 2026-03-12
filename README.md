@@ -14,6 +14,7 @@ A sorting algorithm visualizer built in Rust with [egui](https://github.com/emil
 - Heap Sort
 - Gnome Sort
 - Cocktail Sort
+- Odd Even Sort
 
 ## Running Natively
 

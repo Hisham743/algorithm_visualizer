@@ -10,6 +10,7 @@ pub enum Algorithm {
     Heap,
     Gnome,
     Cocktail,
+    OddEven,
 }
 
 impl Display for Algorithm {
@@ -32,6 +33,7 @@ impl Algorithm {
             Self::Heap => |numbers| heap_sort(numbers),
             Self::Gnome => |numbers| gnome_sort(numbers),
             Self::Cocktail => |numbers| cocktail_sort(numbers),
+            Self::OddEven => |numbers| odd_even_sort(numbers),
         }
     }
 }
@@ -386,6 +388,40 @@ fn cocktail_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> 
     operations.into_iter()
 }
 
+fn odd_even_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations.into_iter();
+    }
+
+    let mut sorted = false;
+    while !sorted {
+        sorted = true;
+
+        for i in (1..(length - 1)).filter(|i| i % 2 == 1) {
+            operations.push(Operation::Compare(i, i + 1));
+            if numbers[i] > numbers[i + 1] {
+                numbers.swap(i, i + 1);
+                operations.push(Operation::Swap(i, i + 1));
+                sorted = false;
+            }
+        }
+
+        for i in (0..(length - 1)).filter(|i| i % 2 == 0) {
+            operations.push(Operation::Compare(i, i + 1));
+            if numbers[i] > numbers[i + 1] {
+                numbers.swap(i, i + 1);
+                operations.push(Operation::Swap(i, i + 1));
+                sorted = false;
+            }
+        }
+    }
+
+    operations.into_iter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -435,4 +471,5 @@ mod tests {
     test_algorithm!(heap_sort_test, Algorithm::Heap);
     test_algorithm!(gnome_sort_test, Algorithm::Gnome);
     test_algorithm!(cocktail_sort_test, Algorithm::Cocktail);
+    test_algorithm!(odd_even_sort, Algorithm::OddEven);
 }

@@ -141,6 +141,11 @@ impl AlgorithmVisualizer {
                     Algorithm::Cocktail,
                     Algorithm::Cocktail.to_string(),
                 );
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::OddEven,
+                    Algorithm::OddEven.to_string(),
+                );
             })
             .response
             .on_hover_text("Algorithm");
