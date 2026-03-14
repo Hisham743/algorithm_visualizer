@@ -20,10 +20,7 @@ impl Display for Algorithm {
 }
 
 impl Algorithm {
-    pub fn operations<T>(&self) -> fn(Vec<T>) -> IntoIter<Operation<T>>
-    where
-        T: Ord + Clone + 'static,
-    {
+    pub fn operations(&self) -> fn(Vec<u16>) -> IntoIter<Operation> {
         match self {
             Self::Bubble => |numbers| bubble_sort(numbers),
             Self::Selection => |numbers| selection_sort(numbers),
@@ -38,21 +35,19 @@ impl Algorithm {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Operation<T: Ord + Clone> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Operation {
     Compare(usize, usize),
     CompareToValue(usize),
     Write(usize, usize),
-    WriteValue(usize, T),
+    WriteValue(usize, u16),
     Swap(usize, usize),
 }
 
-impl<T: Ord + Copy> Copy for Operation<T> {}
-
-impl<T: Ord + Clone> Operation<T> {
-    pub fn apply(self, numbers: &mut [T]) {
+impl Operation {
+    pub fn apply(self, numbers: &mut [u16]) {
         match self {
-            Operation::Write(i, j) => numbers[i] = numbers[j].clone(),
+            Operation::Write(i, j) => numbers[i] = numbers[j],
             Operation::WriteValue(index, value) => numbers[index] = value,
             Operation::Swap(i, j) => numbers.swap(i, j),
             _ => {}
@@ -60,19 +55,19 @@ impl<T: Ord + Clone> Operation<T> {
     }
 }
 
-impl<T: Ord + Clone> Operation<T> {
+impl Operation {
     fn shift_index(&mut self, shift: usize) {
         *self = match self {
             Self::Compare(i, j) => Self::Compare(*i + shift, *j + shift),
             Self::CompareToValue(index) => Self::CompareToValue(*index + shift),
             Self::Write(i, j) => Self::Write(*i + shift, *j + shift),
-            Self::WriteValue(index, value) => Self::WriteValue(*index + shift, value.clone()),
+            Self::WriteValue(index, value) => Self::WriteValue(*index + shift, *value),
             Self::Swap(i, j) => Self::Swap(*i + shift, *j + shift),
         };
     }
 }
 
-fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+fn bubble_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
@@ -101,7 +96,7 @@ fn bubble_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
     operations.into_iter()
 }
 
-fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+fn selection_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
@@ -127,7 +122,7 @@ fn selection_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>>
     operations.into_iter()
 }
 
-fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+fn insertion_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
@@ -137,13 +132,13 @@ fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>>
 
     for i in 1..length {
         let mut insert_index = i;
-        let current_value = numbers[i].clone();
+        let current_value = numbers[i];
 
         for j in (0..i).rev() {
             operations.push(Operation::CompareToValue(j));
 
             if numbers[j] > current_value {
-                numbers[j + 1] = numbers[j].clone();
+                numbers[j + 1] = numbers[j];
                 operations.push(Operation::Write(j + 1, j));
                 insert_index = j;
             } else {
@@ -151,14 +146,14 @@ fn insertion_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>>
             }
         }
 
-        numbers[insert_index] = current_value.clone();
+        numbers[insert_index] = current_value;
         operations.push(Operation::WriteValue(insert_index, current_value))
     }
 
     operations.into_iter()
 }
 
-fn merge_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
+fn merge_sort_inner(numbers: &mut [u16]) -> Vec<Operation> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
@@ -184,12 +179,12 @@ fn merge_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
 
     while i < left_half_len && j < right_half_len {
         if left_half[i] < right_half[j] {
-            numbers[k] = left_half[i].clone();
-            operations.push(Operation::WriteValue(k, left_half[i].clone()));
+            numbers[k] = left_half[i];
+            operations.push(Operation::WriteValue(k, left_half[i]));
             i += 1;
         } else {
-            numbers[k] = right_half[j].clone();
-            operations.push(Operation::WriteValue(k, right_half[j].clone()));
+            numbers[k] = right_half[j];
+            operations.push(Operation::WriteValue(k, right_half[j]));
             j += 1;
         }
 
@@ -197,15 +192,15 @@ fn merge_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
     }
 
     while i < left_half_len {
-        numbers[k] = left_half[i].clone();
-        operations.push(Operation::WriteValue(k, left_half[i].clone()));
+        numbers[k] = left_half[i];
+        operations.push(Operation::WriteValue(k, left_half[i]));
         i += 1;
         k += 1;
     }
 
     while j < right_half_len {
-        numbers[k] = right_half[j].clone();
-        operations.push(Operation::WriteValue(k, right_half[j].clone()));
+        numbers[k] = right_half[j];
+        operations.push(Operation::WriteValue(k, right_half[j]));
         j += 1;
         k += 1;
     }
@@ -213,11 +208,11 @@ fn merge_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
     operations
 }
 
-fn merge_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+fn merge_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     merge_sort_inner(&mut numbers).into_iter()
 }
 
-fn quick_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
+fn quick_sort_inner(numbers: &mut [u16]) -> Vec<Operation> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
@@ -225,7 +220,7 @@ fn quick_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
         return operations;
     }
 
-    let pivot_element = numbers[(length - 1) / 2].clone();
+    let pivot_element = numbers[(length - 1) / 2];
     let (mut i, mut j) = (0, length - 1);
 
     let pivot_index = loop {
@@ -260,11 +255,11 @@ fn quick_sort_inner<T: Ord + Clone>(numbers: &mut [T]) -> Vec<Operation<T>> {
     operations
 }
 
-fn quick_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+fn quick_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     quick_sort_inner(&mut numbers).into_iter()
 }
 
-fn heapify<T: Ord + Clone>(numbers: &mut [T], n: usize, i: usize) -> Vec<Operation<T>> {
+fn heapify(numbers: &mut [u16], n: usize, i: usize) -> Vec<Operation> {
     let mut operations = Vec::new();
 
     let mut largest = i;
@@ -294,7 +289,7 @@ fn heapify<T: Ord + Clone>(numbers: &mut [T], n: usize, i: usize) -> Vec<Operati
     operations
 }
 
-fn heap_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+fn heap_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
@@ -315,7 +310,7 @@ fn heap_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
     operations.into_iter()
 }
 
-fn gnome_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+fn gnome_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
@@ -342,7 +337,7 @@ fn gnome_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
     operations.into_iter()
 }
 
-fn cocktail_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+fn cocktail_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
@@ -388,7 +383,7 @@ fn cocktail_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> 
     operations.into_iter()
 }
 
-fn odd_even_sort<T: Ord + Clone>(mut numbers: Vec<T>) -> IntoIter<Operation<T>> {
+fn odd_even_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     let mut operations = Vec::new();
 
     let length = numbers.len();
@@ -431,7 +426,7 @@ mod tests {
         ($test_name:ident, $algorithm:expr) => {
             #[test]
             fn $test_name() {
-                let sort_check = |mut numbers: Vec<i32>| {
+                let sort_check = |mut numbers: Vec<_>| {
                     let mut sorted = numbers.clone();
                     sorted.sort();
 
@@ -442,13 +437,13 @@ mod tests {
                     numbers == sorted
                 };
 
-                let empty = Vec::<i32>::new();
+                let empty = Vec::new();
                 assert!(sort_check(empty), "empty case");
 
-                let single = vec![fastrand::i32(..)];
+                let single = vec![fastrand::u16(..)];
                 assert!(sort_check(single), "single case");
 
-                let numbers: Vec<_> = iter::repeat_with(|| fastrand::i32(..)).take(100).collect();
+                let numbers: Vec<_> = iter::repeat_with(|| fastrand::u16(..)).take(100).collect();
 
                 let mut sorted = numbers.clone();
                 sorted.sort();

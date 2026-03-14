@@ -35,7 +35,7 @@ pub struct AlgorithmVisualizer {
     tick: Duration,
     numbers: Vec<u16>,
     active_elements: (Option<HiglightedElement>, Option<HiglightedElement>),
-    operations: IntoIter<Operation<u16>>,
+    operations: IntoIter<Operation>,
 
     #[cfg(not(target_arch = "wasm32"))]
     last_operation_instant: Instant,
@@ -230,7 +230,7 @@ impl AlgorithmVisualizer {
         });
     }
 
-    fn set_active_elements(&mut self, operation: Operation<u16>) {
+    fn set_active_elements(&mut self, operation: Operation) {
         let theme = catppuccin_egui::MOCHA;
 
         self.active_elements = match operation {
