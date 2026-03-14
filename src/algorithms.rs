@@ -232,11 +232,13 @@ fn quick_sort_inner(numbers: &mut [u16]) -> Vec<Operation> {
             operations.push(Operation::CompareToValue(i));
             i += 1;
         }
+        operations.push(Operation::CompareToValue(i)); // since last comparison is not pushed in the loop
 
         while numbers[j] > pivot_element {
             operations.push(Operation::CompareToValue(j));
             j -= 1;
         }
+        operations.push(Operation::CompareToValue(i));
 
         if i >= j {
             break j;
@@ -489,11 +491,15 @@ fn shell_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
             let temp = numbers[i];
             let mut j = i;
 
-            while j >= gap && numbers[j - gap] > temp {
+            while j >= gap {
                 operations.push(Operation::CompareToValue(j - gap));
+                if numbers[j - gap] <= temp {
+                    break;
+                }
+
                 numbers[j] = numbers[j - gap];
                 operations.push(Operation::Write(j, j - gap));
-                j -= gap
+                j -= gap;
             }
 
             numbers[j] = temp;
