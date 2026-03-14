@@ -146,6 +146,11 @@ impl AlgorithmVisualizer {
                     Algorithm::OddEven,
                     Algorithm::OddEven.to_string(),
                 );
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::Radix,
+                    Algorithm::Radix.to_string(),
+                );
             })
             .response
             .on_hover_text("Algorithm");
@@ -183,15 +188,13 @@ impl AlgorithmVisualizer {
                 {
                     self.state = SortingState::Paused;
                 }
-            } else {
-                if ui
-                    .add(Button::image(resume_icon))
-                    .on_hover_text(if is_stopped { "Sort" } else { "Resume" })
-                    .clicked()
-                {
-                    self.state = SortingState::Running;
-                }
-            };
+            } else if ui
+                .add(Button::image(resume_icon))
+                .on_hover_text(if is_stopped { "Sort" } else { "Resume" })
+                .clicked()
+            {
+                self.state = SortingState::Running;
+            }
 
             if ui
                 .add_enabled(!is_stopped, Button::image(stop_icon))

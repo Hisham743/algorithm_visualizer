@@ -11,6 +11,7 @@ pub enum Algorithm {
     Gnome,
     Cocktail,
     OddEven,
+    Radix,
 }
 
 impl Display for Algorithm {
@@ -31,6 +32,7 @@ impl Algorithm {
             Self::Gnome => |numbers| gnome_sort(numbers),
             Self::Cocktail => |numbers| cocktail_sort(numbers),
             Self::OddEven => |numbers| odd_even_sort(numbers),
+            Self::Radix => |numbers| radix_sort(numbers),
         }
     }
 }
@@ -417,6 +419,60 @@ fn odd_even_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     operations.into_iter()
 }
 
+fn count_sort_by_digit(numbers: &mut [u16], exponent: u16) -> Vec<Operation> {
+    let mut operations = Vec::new();
+
+    let mut output = vec![0; numbers.len()];
+    let mut counts = [0; 10];
+
+    for number in numbers.iter() {
+        let index = ((*number / exponent) % 10) as usize;
+        counts[index] += 1;
+    }
+
+    for i in 1..10 {
+        counts[i] += counts[i - 1];
+    }
+
+    for number in numbers.iter().rev() {
+        let index = ((*number / exponent) % 10) as usize;
+        counts[index] -= 1;
+        output[counts[index]] = *number;
+    }
+
+    output.iter().enumerate().for_each(|(i, value)| {
+        operations.push(Operation::WriteValue(i, *value));
+        numbers[i] = *value;
+    });
+
+    operations
+}
+
+fn radix_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations.into_iter();
+    }
+
+    let max = numbers
+        .iter()
+        .enumerate()
+        .fold(numbers[0], |max, (i, number)| {
+            operations.push(Operation::CompareToValue(i));
+            max.max(*number)
+        });
+
+    let mut exponent = 1;
+    while max / exponent > 0 {
+        operations.extend(count_sort_by_digit(&mut numbers, exponent));
+        exponent = exponent.saturating_mul(10);
+    }
+
+    operations.into_iter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -467,4 +523,5 @@ mod tests {
     test_algorithm!(gnome_sort_test, Algorithm::Gnome);
     test_algorithm!(cocktail_sort_test, Algorithm::Cocktail);
     test_algorithm!(odd_even_sort, Algorithm::OddEven);
+    test_algorithm!(radix_sort, Algorithm::Radix);
 }
