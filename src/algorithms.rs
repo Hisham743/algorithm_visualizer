@@ -12,6 +12,7 @@ pub enum Algorithm {
     Cocktail,
     OddEven,
     Radix,
+    Shell,
 }
 
 impl Display for Algorithm {
@@ -33,6 +34,7 @@ impl Algorithm {
             Self::Cocktail => |numbers| cocktail_sort(numbers),
             Self::OddEven => |numbers| odd_even_sort(numbers),
             Self::Radix => |numbers| radix_sort(numbers),
+            Self::Shell => |numbers| shell_sort(numbers),
         }
     }
 }
@@ -473,6 +475,37 @@ fn radix_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
     operations.into_iter()
 }
 
+fn shell_sort(mut numbers: Vec<u16>) -> IntoIter<Operation> {
+    let mut operations = Vec::new();
+
+    let length = numbers.len();
+    if length < 2 {
+        return operations.into_iter();
+    }
+
+    let mut gap = length / 2;
+    while gap > 0 {
+        for i in gap..length {
+            let temp = numbers[i];
+            let mut j = i;
+
+            while j >= gap && numbers[j - gap] > temp {
+                operations.push(Operation::CompareToValue(j - gap));
+                numbers[j] = numbers[j - gap];
+                operations.push(Operation::Write(j, j - gap));
+                j -= gap
+            }
+
+            numbers[j] = temp;
+            operations.push(Operation::WriteValue(j, temp));
+        }
+
+        gap /= 2;
+    }
+
+    operations.into_iter()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -524,4 +557,5 @@ mod tests {
     test_algorithm!(cocktail_sort_test, Algorithm::Cocktail);
     test_algorithm!(odd_even_sort, Algorithm::OddEven);
     test_algorithm!(radix_sort, Algorithm::Radix);
+    test_algorithm!(shell_sort, Algorithm::Shell);
 }

@@ -16,6 +16,7 @@ A sorting algorithm visualizer built in Rust with [egui](https://github.com/emil
 - Cocktail Sort
 - Odd Even Sort
 - Radix Sort
+- Shell Sort
 
 ## Running Natively
 

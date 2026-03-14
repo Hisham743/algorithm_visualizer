@@ -97,9 +97,9 @@ impl AlgorithmVisualizer {
 
     fn algorithm_input(&mut self, ui: &mut Ui) {
         let before = self.algorithm;
-
         ComboBox::from_id_salt("Algorithm")
             .selected_text(self.algorithm.to_string())
+            .height(250.)
             .show_ui(ui, |ui| {
                 ui.selectable_value(
                     &mut self.algorithm,
@@ -150,6 +150,11 @@ impl AlgorithmVisualizer {
                     &mut self.algorithm,
                     Algorithm::Radix,
                     Algorithm::Radix.to_string(),
+                );
+                ui.selectable_value(
+                    &mut self.algorithm,
+                    Algorithm::Shell,
+                    Algorithm::Shell.to_string(),
                 );
             })
             .response
